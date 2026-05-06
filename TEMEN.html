@@ -1,0 +1,577 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>TEMEN — 내 정보의 모든 것</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Pretendard:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<link href="https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css" rel="stylesheet">
+<style>
+  :root {
+    --bg: #0b0d0e;
+    --bg-2: #14171a;
+    --bg-3: #1d2125;
+    --fg: #f5f6f7;
+    --fg-2: #c9ccd1;
+    --fg-3: #8a8f97;
+    --fg-4: #5a5f66;
+    --line: rgba(255,255,255,0.08);
+    --line-2: rgba(255,255,255,0.14);
+    --accent: oklch(72% 0.10 210);
+    --positive: oklch(75% 0.10 155);
+    --warning: oklch(80% 0.11 75);
+    --danger: oklch(70% 0.13 25);
+    --radius: 14px;
+    --radius-lg: 22px;
+    --font-display: "Inter", "Pretendard", system-ui, sans-serif;
+    --font-body: "Pretendard", "Inter", system-ui, sans-serif;
+    --font-mono: "JetBrains Mono", ui-monospace, monospace;
+  }
+  html, body { background: var(--bg); color: var(--fg); margin: 0; padding: 0; font-family: var(--font-body); -webkit-font-smoothing: antialiased; }
+  body { min-height: 100vh; }
+  * { box-sizing: border-box; }
+  a { color: inherit; text-decoration: none; }
+
+  /* NAV */
+  .nav {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    display: grid; grid-template-columns: 200px 1fr 200px;
+    align-items: center; padding: 18px 28px;
+    background: linear-gradient(180deg, rgba(11,13,14,0.85) 0%, rgba(11,13,14,0.0) 100%);
+    backdrop-filter: blur(8px);
+  }
+  .nav-brand { font-family: var(--font-display); letter-spacing: 0.42em; font-weight: 600; font-size: 14px; }
+  .nav-menu { display: flex; gap: 32px; justify-content: center; align-items: center; }
+  .nav-menu a { font-size: 13px; font-weight: 500; color: var(--fg-2); padding: 6px 10px; border-radius: 8px; transition: background 0.15s; }
+  .nav-menu a:hover { background: rgba(255,255,255,0.06); color: var(--fg); }
+  .nav-menu a.active { color: var(--fg); }
+  .nav-right { display: flex; gap: 14px; justify-content: flex-end; align-items: center; color: var(--fg-3); font-size: 13px; }
+  .nav-right .icon { width: 32px; height: 32px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; cursor: default; }
+  .nav-right .icon:hover { background: rgba(255,255,255,0.08); color: var(--fg); }
+  .avatar { width: 32px; height: 32px; border-radius: 50%; background: linear-gradient(135deg, #3a4148, #1d2125); display: inline-flex; align-items: center; justify-content: center; font-size: 11px; font-weight: 600; color: var(--fg); }
+
+  /* HERO */
+  .hero {
+    height: 100vh; min-height: 720px; position: relative; overflow: hidden;
+    display: flex; align-items: flex-end; justify-content: center;
+  }
+  .hero-bg {
+    position: absolute; inset: 0;
+    background-image:
+      linear-gradient(180deg, rgba(11,13,14,0.55) 0%, rgba(11,13,14,0.2) 35%, rgba(11,13,14,0.1) 65%, rgba(11,13,14,0.95) 100%),
+      url('https://images.unsplash.com/photo-1451187580459-43490279c0fa?w=2400&q=85&auto=format&fit=crop');
+    background-size: cover; background-position: center;
+    transform: scale(1.05);
+  }
+  .hero-content { position: relative; z-index: 2; text-align: center; padding: 0 24px 14vh; max-width: 720px; }
+  .hero-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; color: var(--fg-3); text-transform: uppercase; margin-bottom: 18px; }
+  .hero h1 {
+    font-family: var(--font-display); font-weight: 500;
+    font-size: clamp(56px, 8vw, 104px); letter-spacing: -0.03em; line-height: 0.95;
+    margin: 0 0 22px;
+  }
+  .hero h1 em { font-style: italic; font-weight: 300; color: var(--fg-2); }
+  .hero p { color: var(--fg-2); font-size: 17px; line-height: 1.55; margin: 0 auto 36px; max-width: 540px; }
+  .hero-cta { display: inline-flex; gap: 12px; }
+  .btn {
+    display: inline-flex; align-items: center; justify-content: center; gap: 8px;
+    height: 42px; padding: 0 28px; border-radius: 22px;
+    font-size: 13px; font-weight: 500; letter-spacing: 0.02em;
+    border: 1px solid transparent; cursor: default; transition: all 0.15s;
+    min-width: 220px;
+  }
+  .btn-primary { background: var(--fg); color: #0b0d0e; }
+  .btn-primary:hover { background: #fff; }
+  .btn-ghost { background: rgba(20,23,26,0.55); color: var(--fg); border-color: rgba(255,255,255,0.18); backdrop-filter: blur(6px); }
+  .btn-ghost:hover { background: rgba(20,23,26,0.8); }
+
+  .scroll-cue {
+    position: absolute; bottom: 28px; left: 50%; transform: translateX(-50%); z-index: 2;
+    font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.2em; color: var(--fg-3);
+    text-transform: uppercase; display: flex; flex-direction: column; align-items: center; gap: 8px;
+  }
+  .scroll-cue .line { width: 1px; height: 28px; background: linear-gradient(180deg, var(--fg-3), transparent); }
+
+  /* SECTION */
+  section { padding: 96px 28px; max-width: 1440px; margin: 0 auto; }
+  .section-head { display: flex; align-items: end; justify-content: space-between; margin-bottom: 48px; gap: 24px; flex-wrap: wrap; }
+  .section-head h2 { font-family: var(--font-display); font-weight: 500; font-size: 40px; letter-spacing: -0.02em; margin: 0; }
+  .section-head .eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.2em; color: var(--fg-3); text-transform: uppercase; margin-bottom: 10px; display: block; }
+  .section-head .sub { color: var(--fg-3); font-size: 14px; max-width: 360px; line-height: 1.55; margin: 0; }
+
+  /* OVERVIEW */
+  .overview {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+  .stat {
+    background: var(--bg-2); border: 1px solid var(--line);
+    border-radius: var(--radius-lg); padding: 28px;
+    display: flex; flex-direction: column; gap: 18px; min-height: 200px;
+    position: relative; overflow: hidden;
+  }
+  .stat-label { display: flex; align-items: center; justify-content: space-between; font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--fg-3); text-transform: uppercase; }
+  .stat-label .dot { width: 6px; height: 6px; border-radius: 50%; background: var(--positive); }
+  .stat-value { font-family: var(--font-display); font-weight: 500; font-size: 38px; letter-spacing: -0.02em; line-height: 1; }
+  .stat-value .unit { font-size: 16px; color: var(--fg-3); margin-left: 4px; font-weight: 400; }
+  .stat-meta { color: var(--fg-3); font-size: 12px; display: flex; gap: 6px; align-items: center; margin-top: auto; }
+  .stat-meta .delta { color: var(--positive); font-family: var(--font-mono); font-weight: 500; }
+  .stat-meta .delta.neg { color: var(--danger); }
+  .spark { width: 100%; height: 36px; }
+
+  /* CATEGORY HERO ROWS — Tesla-style image cards */
+  .cat-stack { display: flex; flex-direction: column; gap: 14px; }
+  .cat-row {
+    position: relative; overflow: hidden; border-radius: var(--radius-lg);
+    height: 540px; background: var(--bg-2);
+  }
+  .cat-row .cat-bg { position: absolute; inset: 0; background-size: cover; background-position: center; }
+  .cat-row .cat-overlay {
+    position: absolute; inset: 0;
+    background: linear-gradient(180deg, rgba(11,13,14,0.0) 0%, rgba(11,13,14,0.0) 30%, rgba(11,13,14,0.85) 100%);
+  }
+  .cat-row.l-overlay .cat-overlay {
+    background: linear-gradient(90deg, rgba(11,13,14,0.85) 0%, rgba(11,13,14,0.4) 50%, rgba(11,13,14,0.0) 100%),
+                linear-gradient(180deg, rgba(11,13,14,0.0) 70%, rgba(11,13,14,0.7) 100%);
+  }
+  .cat-content { position: relative; z-index: 2; padding: 56px; display: flex; flex-direction: column; height: 100%; }
+  .cat-row.center .cat-content { align-items: center; text-align: center; justify-content: flex-start; padding-top: 64px; }
+  .cat-row.bottom .cat-content { justify-content: flex-end; }
+  .cat-row.left .cat-content { max-width: 580px; justify-content: flex-end; }
+  .cat-eyebrow { font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.18em; color: var(--fg-2); text-transform: uppercase; margin-bottom: 14px; }
+  .cat-title { font-family: var(--font-display); font-weight: 500; font-size: 56px; letter-spacing: -0.025em; line-height: 1; margin: 0 0 14px; }
+  .cat-sub { color: var(--fg-2); font-size: 15px; line-height: 1.55; max-width: 460px; margin: 0 0 28px; }
+  .cat-row.center .cat-sub { margin-left: auto; margin-right: auto; }
+  .cat-cta { display: flex; gap: 10px; }
+  .cat-row.center .cat-cta { justify-content: center; }
+
+  /* LEDGER PANEL */
+  .ledger-grid { display: grid; grid-template-columns: 1.4fr 1fr; gap: 14px; position: absolute; left: 56px; right: 56px; bottom: 56px; z-index: 2; }
+  .panel {
+    background: rgba(20,23,26,0.72); backdrop-filter: blur(18px);
+    border: 1px solid var(--line-2); border-radius: var(--radius);
+    padding: 22px;
+  }
+  .panel-h { display: flex; justify-content: space-between; align-items: center; margin-bottom: 18px; }
+  .panel-h .t { font-size: 12px; color: var(--fg-3); font-family: var(--font-mono); letter-spacing: 0.14em; text-transform: uppercase; }
+  .panel-h .v { font-family: var(--font-display); font-size: 22px; font-weight: 500; }
+
+  .bar-chart { display: flex; align-items: flex-end; gap: 10px; height: 120px; padding-top: 10px; }
+  .bar-chart .col { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 6px; }
+  .bar-chart .bar { width: 100%; background: var(--fg); border-radius: 3px 3px 0 0; opacity: 0.85; }
+  .bar-chart .bar.dim { background: var(--fg-4); opacity: 0.6; }
+  .bar-chart .lbl { font-family: var(--font-mono); font-size: 10px; color: var(--fg-3); letter-spacing: 0.06em; }
+
+  .cat-list { display: flex; flex-direction: column; gap: 14px; }
+  .cat-item { display: grid; grid-template-columns: auto 1fr auto; gap: 12px; align-items: center; }
+  .cat-item .name { font-size: 13px; color: var(--fg-2); }
+  .cat-item .amt { font-family: var(--font-mono); font-size: 12px; color: var(--fg); }
+  .cat-bar { height: 4px; background: rgba(255,255,255,0.08); border-radius: 4px; overflow: hidden; }
+  .cat-bar .fill { height: 100%; background: var(--fg); border-radius: 4px; }
+
+  /* CAR DETAILS */
+  .car-stats { position: absolute; left: 56px; right: 56px; bottom: 56px; z-index: 2; display: grid; grid-template-columns: repeat(4, 1fr); gap: 14px; }
+  .car-stat { background: rgba(20,23,26,0.7); backdrop-filter: blur(18px); border: 1px solid var(--line-2); border-radius: var(--radius); padding: 20px; }
+  .car-stat .lbl { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.16em; color: var(--fg-3); text-transform: uppercase; }
+  .car-stat .v { font-family: var(--font-display); font-weight: 500; font-size: 30px; letter-spacing: -0.02em; margin: 8px 0 4px; }
+  .car-stat .u { color: var(--fg-3); font-size: 12px; }
+
+  /* CATEGORY GRID — bottom small cards */
+  .grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+  .mini-card { position: relative; overflow: hidden; height: 420px; border-radius: var(--radius-lg); background: var(--bg-2); }
+  .mini-card .bg { position: absolute; inset: 0; background-size: cover; background-position: center; transition: transform 0.6s; }
+  .mini-card:hover .bg { transform: scale(1.04); }
+  .mini-card .ov { position: absolute; inset: 0; background: linear-gradient(180deg, rgba(11,13,14,0.0) 30%, rgba(11,13,14,0.92) 100%); }
+  .mini-card .body { position: absolute; left: 28px; right: 28px; bottom: 26px; z-index: 2; }
+  .mini-card .eb { font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.18em; color: var(--fg-2); text-transform: uppercase; margin-bottom: 8px; }
+  .mini-card h3 { font-family: var(--font-display); font-weight: 500; font-size: 28px; letter-spacing: -0.02em; margin: 0 0 8px; }
+  .mini-card p { color: var(--fg-2); font-size: 13px; line-height: 1.5; margin: 0 0 14px; }
+  .mini-link { font-family: var(--font-mono); font-size: 11px; color: var(--fg); letter-spacing: 0.1em; text-transform: uppercase; border-bottom: 1px solid var(--fg); padding-bottom: 2px; display: inline-block; }
+
+  /* HEALTH / SUBS / TODOS – inline data displays inside mini cards */
+  .mini-data { position: absolute; top: 26px; left: 28px; right: 28px; z-index: 2; display: flex; flex-direction: column; gap: 6px; }
+  .mini-data .row { display: flex; justify-content: space-between; align-items: center; font-size: 12px; }
+  .mini-data .row .k { color: var(--fg-3); font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.12em; text-transform: uppercase; }
+  .mini-data .row .vv { font-family: var(--font-mono); color: var(--fg); font-size: 12px; }
+  .ring { position: absolute; top: 24px; right: 24px; z-index: 2; width: 64px; height: 64px; }
+
+  /* FOOTER */
+  footer { padding: 40px 28px 28px; border-top: 1px solid var(--line); margin-top: 40px; color: var(--fg-3); font-size: 12px; }
+  footer .row { max-width: 1440px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px; }
+  footer .links { display: flex; gap: 24px; }
+  footer .links a:hover { color: var(--fg); }
+
+  /* tiny utility */
+  .ico { width: 16px; height: 16px; stroke: currentColor; fill: none; stroke-width: 1.6; }
+
+  /* density */
+  body[data-density="cozy"] section { padding: 72px 24px; }
+  body[data-density="cozy"] .cat-row { height: 480px; }
+  body[data-density="cozy"] .mini-card { height: 380px; }
+
+  /* layout - condensed */
+  body[data-layout="condensed"] section { padding: 64px 28px; }
+  body[data-layout="condensed"] .cat-row { height: 460px; }
+
+  /* font swap */
+  body[data-font="serif"] { --font-display: "Cormorant Garamond", Georgia, serif; }
+  body[data-font="mono"] { --font-display: "JetBrains Mono", monospace; --font-body: "JetBrains Mono", monospace; }
+
+  /* accent color overrides */
+  body[data-accent="ice"]   { --accent: oklch(78% 0.08 220); }
+  body[data-accent="moss"]  { --accent: oklch(72% 0.09 150); }
+  body[data-accent="amber"] { --accent: oklch(78% 0.12 75); }
+  body[data-accent="white"] { --accent: #f5f6f7; }
+
+  /* tone overrides */
+  body[data-tone="warm"]   { --bg: #0d0c0a; --bg-2: #18160f; --bg-3: #221f17; }
+  body[data-tone="cool"]   { --bg: #0a0d10; --bg-2: #131820; --bg-3: #1c2330; }
+  body[data-tone="neutral"]{ --bg: #0b0d0e; --bg-2: #14171a; --bg-3: #1d2125; }
+
+  @media (max-width: 1100px) {
+    .overview, .car-stats, .grid-3 { grid-template-columns: repeat(2, 1fr); }
+    .ledger-grid { position: static; padding: 28px; grid-template-columns: 1fr; }
+    .car-stats { position: static; padding: 28px; }
+    .cat-row { height: auto; min-height: 460px; }
+  }
+</style>
+</head>
+<body data-tone="neutral" data-accent="ice" data-font="sans" data-density="regular" data-layout="default">
+
+<nav class="nav">
+  <div class="nav-brand">T E M E N</div>
+  <div class="nav-menu">
+    <a href="#dashboard" class="active">대시보드</a>
+    <a href="#ledger">가계부</a>
+    <a href="#car">자동차</a>
+    <a href="#more">살펴보기</a>
+  </div>
+  <div class="nav-right">
+    <span class="icon" title="검색">
+      <svg class="ico" viewBox="0 0 20 20"><circle cx="9" cy="9" r="6"/><path d="m14 14 4 4"/></svg>
+    </span>
+    <span class="icon" title="알림">
+      <svg class="ico" viewBox="0 0 20 20"><path d="M5 8a5 5 0 0 1 10 0v4l1 2H4l1-2z"/><path d="M8 16a2 2 0 0 0 4 0"/></svg>
+    </span>
+    <div class="avatar">JK</div>
+  </div>
+</nav>
+
+<!-- HERO -->
+<section class="hero" style="padding-top:0; padding-bottom:0; max-width:none;">
+  <div class="hero-bg"></div>
+  <div class="hero-content">
+    <div class="hero-eyebrow">— Personal data, your way</div>
+    <h1>내 모든 정보를<br><em>한 곳에서</em></h1>
+    <p>가계부, 자동차, 건강, 구독까지. 흩어진 일상의 숫자를 모아 한눈에 살펴보세요.</p>
+    <div class="hero-cta">
+      <a class="btn btn-primary">대시보드 열기</a>
+      <a class="btn btn-ghost">새 기록 추가</a>
+    </div>
+  </div>
+  <div class="scroll-cue">
+    <span>SCROLL</span>
+    <span class="line"></span>
+  </div>
+</section>
+
+<!-- OVERVIEW STATS -->
+<section id="dashboard">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">— 11월 2026 · This month at a glance</span>
+      <h2>이번 달 한눈에</h2>
+    </div>
+    <p class="sub">5개 영역의 핵심 지표를 자동으로 모아 보여드립니다. 마지막 동기화: 오늘 오전 9:24</p>
+  </div>
+
+  <div class="overview">
+    <div class="stat">
+      <div class="stat-label"><span>지출</span><span class="dot" style="background: var(--warning)"></span></div>
+      <div class="stat-value">1,847,200<span class="unit">₩</span></div>
+      <svg class="spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <polyline fill="none" stroke="currentColor" stroke-width="1.5" points="0,28 20,22 40,26 60,18 80,20 100,14 120,18 140,12 160,16 180,10 200,14" style="color:var(--fg-3)"/>
+      </svg>
+      <div class="stat-meta">예산 대비 <span class="delta neg">+8.2%</span> · 2,000,000₩ 한도</div>
+    </div>
+    <div class="stat">
+      <div class="stat-label"><span>주행</span><span class="dot"></span></div>
+      <div class="stat-value">1,284<span class="unit">km</span></div>
+      <svg class="spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <polyline fill="none" stroke="currentColor" stroke-width="1.5" points="0,30 20,28 40,18 60,22 80,14 100,16 120,10 140,14 160,8 180,12 200,6" style="color:var(--fg-3)"/>
+      </svg>
+      <div class="stat-meta">평균 연비 <span class="delta">12.4 km/L</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label"><span>활동</span><span class="dot"></span></div>
+      <div class="stat-value">23<span class="unit">/ 30 day</span></div>
+      <svg class="spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <g style="color:var(--fg-3)">
+          <rect x="2"  y="22" width="6" height="14" fill="currentColor" opacity=".5"/>
+          <rect x="14" y="14" width="6" height="22" fill="currentColor" opacity=".7"/>
+          <rect x="26" y="18" width="6" height="18" fill="currentColor" opacity=".6"/>
+          <rect x="38" y="10" width="6" height="26" fill="currentColor" opacity=".9"/>
+          <rect x="50" y="20" width="6" height="16" fill="currentColor" opacity=".5"/>
+          <rect x="62" y="6"  width="6" height="30" fill="currentColor"/>
+          <rect x="74" y="12" width="6" height="24" fill="currentColor" opacity=".8"/>
+          <rect x="86" y="14" width="6" height="22" fill="currentColor" opacity=".7"/>
+          <rect x="98" y="8"  width="6" height="28" fill="currentColor" opacity=".95"/>
+          <rect x="110" y="18" width="6" height="18" fill="currentColor" opacity=".6"/>
+          <rect x="122" y="10" width="6" height="26" fill="currentColor" opacity=".85"/>
+          <rect x="134" y="14" width="6" height="22" fill="currentColor" opacity=".7"/>
+          <rect x="146" y="6"  width="6" height="30" fill="currentColor"/>
+          <rect x="158" y="12" width="6" height="24" fill="currentColor" opacity=".8"/>
+          <rect x="170" y="20" width="6" height="16" fill="currentColor" opacity=".5"/>
+          <rect x="182" y="8"  width="6" height="28" fill="currentColor" opacity=".9"/>
+        </g>
+      </svg>
+      <div class="stat-meta">목표 달성률 <span class="delta">76.7%</span></div>
+    </div>
+    <div class="stat">
+      <div class="stat-label"><span>구독</span><span class="dot" style="background: var(--accent)"></span></div>
+      <div class="stat-value">147,800<span class="unit">₩/mo</span></div>
+      <svg class="spark" viewBox="0 0 200 36" preserveAspectRatio="none">
+        <polyline fill="none" stroke="currentColor" stroke-width="1.5" points="0,18 25,18 50,18 75,16 100,16 125,14 150,14 175,12 200,12" style="color:var(--fg-3)"/>
+      </svg>
+      <div class="stat-meta">활성 12 · 다음 결제 <span class="delta" style="color:var(--fg-2)">D-3</span></div>
+    </div>
+  </div>
+</section>
+
+<!-- LEDGER FULLWIDTH -->
+<section id="ledger" style="padding-top: 0;">
+  <div class="cat-stack">
+    <div class="cat-row left">
+      <div class="cat-bg" style="background-image: url('https://images.unsplash.com/photo-1554224155-6726b3ff858f?w=2400&q=85&auto=format&fit=crop')"></div>
+      <div class="cat-overlay"></div>
+      <div class="cat-content">
+        <div class="cat-eyebrow">— Ledger</div>
+        <h3 class="cat-title">가계부</h3>
+        <p class="cat-sub">매일의 지출이 자동으로 분류되어 한 달의 흐름이 됩니다. 카테고리별 패턴을 살피고 다음 달 예산을 설계하세요.</p>
+        <div class="cat-cta">
+          <a class="btn btn-primary" style="min-width:160px">상세 보기</a>
+          <a class="btn btn-ghost" style="min-width:160px">거래 추가</a>
+        </div>
+      </div>
+
+      <div class="ledger-grid">
+        <div class="panel">
+          <div class="panel-h">
+            <span class="t">— Daily Spend · 11월</span>
+            <span class="v">₩ 1,847,200</span>
+          </div>
+          <div class="bar-chart" id="ledger-bars"></div>
+        </div>
+        <div class="panel">
+          <div class="panel-h">
+            <span class="t">— By Category</span>
+            <span class="v">5</span>
+          </div>
+          <div class="cat-list" id="cat-list">
+            <div class="cat-item"><span class="name">식비</span><div class="cat-bar"><div class="fill" style="width:84%"></div></div><span class="amt">624,800</span></div>
+            <div class="cat-item"><span class="name">교통</span><div class="cat-bar"><div class="fill" style="width:62%"></div></div><span class="amt">421,000</span></div>
+            <div class="cat-item"><span class="name">주거</span><div class="cat-bar"><div class="fill" style="width:48%"></div></div><span class="amt">350,000</span></div>
+            <div class="cat-item"><span class="name">쇼핑</span><div class="cat-bar"><div class="fill" style="width:36%"></div></div><span class="amt">238,400</span></div>
+            <div class="cat-item"><span class="name">기타</span><div class="cat-bar"><div class="fill" style="width:30%"></div></div><span class="amt">213,000</span></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- CAR ROW -->
+    <div class="cat-row center" id="car">
+      <div class="cat-bg" style="background-image: url('https://images.unsplash.com/photo-1494976388531-d1058494cdd8?w=2400&q=85&auto=format&fit=crop')"></div>
+      <div class="cat-overlay" style="background: linear-gradient(180deg, rgba(11,13,14,0.4) 0%, rgba(11,13,14,0.0) 30%, rgba(11,13,14,0.0) 50%, rgba(11,13,14,0.92) 100%)"></div>
+      <div class="cat-content">
+        <div class="cat-eyebrow">— Garage</div>
+        <h3 class="cat-title">자동차 관리</h3>
+        <p class="cat-sub">주행거리, 연비, 주유와 충전 이력까지. 차에 대한 모든 숫자를 차례대로 살펴보세요.</p>
+        <div class="cat-cta">
+          <a class="btn btn-ghost" style="min-width:160px">기록 추가</a>
+          <a class="btn btn-primary" style="min-width:160px">차고 열기</a>
+        </div>
+      </div>
+
+      <div class="car-stats">
+        <div class="car-stat">
+          <div class="lbl">— ODOMETER</div>
+          <div class="v">42,184</div>
+          <div class="u">km · 현대 아반떼</div>
+        </div>
+        <div class="car-stat">
+          <div class="lbl">— 평균 연비</div>
+          <div class="v">12.4</div>
+          <div class="u">km/L · 30일 평균</div>
+        </div>
+        <div class="car-stat">
+          <div class="lbl">— 이번 달 주행</div>
+          <div class="v">1,284</div>
+          <div class="u">km · ₩168,400 연료비</div>
+        </div>
+        <div class="car-stat">
+          <div class="lbl">— 다음 정비</div>
+          <div class="v">2,816</div>
+          <div class="u">km 후 · 엔진오일</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- CATEGORY GRID -->
+<section id="more">
+  <div class="section-head">
+    <div>
+      <span class="eyebrow">— More categories</span>
+      <h2>그 밖의 영역</h2>
+    </div>
+    <p class="sub">언제든 새로운 카테고리를 추가할 수 있어요. 일상의 어떤 숫자든 TEMEN이 정리해 드립니다.</p>
+  </div>
+
+  <div class="grid-3">
+    <!-- HEALTH -->
+    <div class="mini-card">
+      <div class="bg" style="background-image: url('https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?w=1600&q=85&auto=format&fit=crop')"></div>
+      <div class="ov"></div>
+      <svg class="ring" viewBox="0 0 64 64">
+        <circle cx="32" cy="32" r="26" fill="none" stroke="rgba(255,255,255,0.18)" stroke-width="4"/>
+        <circle cx="32" cy="32" r="26" fill="none" stroke="#f5f6f7" stroke-width="4" stroke-linecap="round"
+                stroke-dasharray="163.4" stroke-dashoffset="42" transform="rotate(-90 32 32)"/>
+        <text x="32" y="36" text-anchor="middle" fill="#f5f6f7" font-family="Inter" font-size="13" font-weight="500">74%</text>
+      </svg>
+      <div class="mini-data">
+        <div class="row"><span class="k">— Steps</span><span class="vv">8,420 / 10k</span></div>
+        <div class="row"><span class="k">— Run</span><span class="vv">12 days</span></div>
+      </div>
+      <div class="body">
+        <div class="eb">— Health</div>
+        <h3>건강 · 운동</h3>
+        <p>걸음 수, 운동 빈도, 체성분 변화를 한 줄로.</p>
+        <span class="mini-link">살펴보기 →</span>
+      </div>
+    </div>
+
+    <!-- SUBSCRIPTIONS -->
+    <div class="mini-card">
+      <div class="bg" style="background-image: url('https://images.unsplash.com/photo-1517245386807-bb43f82c33c4?w=1600&q=85&auto=format&fit=crop')"></div>
+      <div class="ov"></div>
+      <div class="mini-data">
+        <div class="row"><span class="k">— Active</span><span class="vv">12 services</span></div>
+        <div class="row"><span class="k">— Monthly</span><span class="vv">₩ 147,800</span></div>
+        <div class="row"><span class="k">— Next</span><span class="vv">Netflix · D-3</span></div>
+      </div>
+      <div class="body">
+        <div class="eb">— Subscriptions</div>
+        <h3>구독 관리</h3>
+        <p>잊고 있던 결제까지 한 눈에. 자동으로 정리됩니다.</p>
+        <span class="mini-link">살펴보기 →</span>
+      </div>
+    </div>
+
+    <!-- TODOS / NOTES -->
+    <div class="mini-card">
+      <div class="bg" style="background-image: url('https://images.unsplash.com/photo-1455390582262-044cdead277a?w=1600&q=85&auto=format&fit=crop')"></div>
+      <div class="ov"></div>
+      <div class="mini-data">
+        <div class="row"><span class="k">— Today</span><span class="vv">3 / 7</span></div>
+        <div class="row"><span class="k">— Notes</span><span class="vv">128</span></div>
+        <div class="row"><span class="k">— Pinned</span><span class="vv">4</span></div>
+      </div>
+      <div class="body">
+        <div class="eb">— Tasks</div>
+        <h3>할 일 · 메모</h3>
+        <p>흩어진 메모와 오늘의 할 일을 한 곳에서.</p>
+        <span class="mini-link">살펴보기 →</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="row">
+    <div>TEMEN © 2026 · 내 정보의 모든 것</div>
+    <div class="links">
+      <a>About</a><a>Privacy</a><a>Backup</a><a>Help</a>
+    </div>
+  </div>
+</footer>
+
+<div id="tweaks-root"></div>
+
+<script>
+  // build ledger bar chart (30 days)
+  (function(){
+    const seed = [42,28,65,18,33,71,55,12,48,25,60,38,82,46,30,74,52,22,68,44,18,90,36,58,28,72,42,26,80,50];
+    const max = Math.max(...seed);
+    const today = new Date().getDate();
+    const root = document.getElementById('ledger-bars');
+    if (!root) return;
+    seed.slice(-15).forEach((v, i, arr) => {
+      const col = document.createElement('div'); col.className = 'col';
+      const bar = document.createElement('div');
+      bar.className = 'bar' + (i < arr.length - 5 ? ' dim' : '');
+      bar.style.height = (10 + (v / max) * 90) + '%';
+      const lbl = document.createElement('div'); lbl.className = 'lbl';
+      lbl.textContent = (today - (arr.length - 1 - i)) > 0 ? (today - (arr.length - 1 - i)) : '';
+      col.appendChild(bar); col.appendChild(lbl);
+      root.appendChild(col);
+    });
+  })();
+</script>
+
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" integrity="sha384-hD6/rw4ppMLGNu3tX5cjIb+uRZ7UkRJ6BPkLpg4hAu/6onKUg4lLsHAs9EBPT82L" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" integrity="sha384-u6aeetuaXnQ38mYT8rp6sbXaQe3NL9t+IBXmnYxwkUI2Hw4bsp2Wvmx4yRQF1uAm" crossorigin="anonymous"></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" integrity="sha384-m08KidiNqLdpJqLq95G/LEi8Qvjl/xUYll3QILypMoQ65QorJ9Lvtp2RXYGBFj1y" crossorigin="anonymous"></script>
+<script type="text/babel" src="tweaks-panel.jsx"></script>
+<script type="text/babel">
+  const TWEAK_DEFAULTS = /*EDITMODE-BEGIN*/{
+    "tone": "neutral",
+    "accent": "ice",
+    "font": "sans",
+    "density": "regular",
+    "layout": "default"
+  }/*EDITMODE-END*/;
+
+  function App() {
+    const [t, setTweak] = useTweaks(TWEAK_DEFAULTS);
+    React.useEffect(() => {
+      document.body.dataset.tone = t.tone;
+      document.body.dataset.accent = t.accent;
+      document.body.dataset.font = t.font;
+      document.body.dataset.density = t.density;
+      document.body.dataset.layout = t.layout;
+    }, [t]);
+
+    return (
+      <TweaksPanel>
+        <TweakSection label="색감" />
+        <TweakRadio label="배경 톤" value={t.tone}
+          options={['neutral','warm','cool']}
+          onChange={(v) => setTweak('tone', v)} />
+        <TweakSelect label="액센트" value={t.accent}
+          options={['ice','moss','amber','white']}
+          onChange={(v) => setTweak('accent', v)} />
+
+        <TweakSection label="레이아웃" />
+        <TweakRadio label="밀도" value={t.density}
+          options={['regular','cozy']}
+          onChange={(v) => setTweak('density', v)} />
+        <TweakRadio label="섹션 간격" value={t.layout}
+          options={['default','condensed']}
+          onChange={(v) => setTweak('layout', v)} />
+
+        <TweakSection label="타이포그래피" />
+        <TweakSelect label="제목 폰트" value={t.font}
+          options={['sans','serif','mono']}
+          onChange={(v) => setTweak('font', v)} />
+      </TweaksPanel>
+    );
+  }
+
+  ReactDOM.createRoot(document.getElementById('tweaks-root')).render(<App />);
+</script>
+</body>
+</html>
