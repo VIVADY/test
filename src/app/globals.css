@@ -1,0 +1,39 @@
+@import "tailwindcss";
+
+@layer base {
+  :root {
+    --bg: #0b0d0e;
+    --bg-2: #14171a;
+    --bg-3: #1d2125;
+    --fg: #f5f6f7;
+    --fg-2: #c9ccd1;
+    --fg-3: #8a8f97;
+    --fg-4: #5a5f66;
+    --line: rgba(255, 255, 255, 0.08);
+    --line-2: rgba(255, 255, 255, 0.14);
+    --accent: oklch(72% 0.1 210);
+    --positive: oklch(75% 0.1 155);
+    --warning: oklch(80% 0.11 75);
+    --danger: oklch(70% 0.13 25);
+    --radius: 14px;
+    --radius-lg: 22px;
+  }
+
+  html,
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    margin: 0;
+    padding: 0;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  * {
+    box-sizing: border-box;
+  }
+
+  a {
+    color: inherit;
+    text-decoration: none;
+  }
+}
