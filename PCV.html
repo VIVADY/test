@@ -1,0 +1,1891 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>PCV 시험현황 대시보드</title>
+<style>
+  /* ===== 클리니컬 블루 팔레트 (여기 값만 바꾸면 전체 톤이 바뀜) ===== */
+  :root{
+    --bg:#eef2f7; --panel:#ffffff; --ink:#152540; --muted:#647389; --line:#dbe4f0;
+    --navy:#173a6b;         /* 헤더·강조 */
+    --accent:#2166ac;       /* 포인트(클리니컬 블루) */
+    --accent-soft:#e7eef8;  /* 연한 강조 배경 */
+    /* 상태 */
+    --done:#0e8a6f;         /* 완료 */
+    --wip:#c98a1a;          /* 진행 */
+    --todo:#8794a8;         /* 미착수 */
+    --na:#c2ccd9;           /* 해당없음 */
+    /* 경과 경고 단계 */
+    --ok:#2f9e6f;           /* 정상(2주 이내) */
+    --caution:#d19a1e;      /* 주의(2주 초과) */
+    --warn:#dd6b20;         /* 경고(4주 초과) */
+    --over:#c53030;         /* 타겟초과(5주 초과) */
+    --font:-apple-system,"Segoe UI","Malgun Gothic","맑은 고딕",sans-serif;
+    --mono:"SF Mono","Consolas","D2Coding",monospace;
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:var(--font);font-size:14px;line-height:1.5;padding:0 0 70px;}
+  .wrap{max-width:1760px;margin:0 auto;padding:0 26px;}
+  /* ===== 와이드 모니터 보고용 레이아웃 =====
+     1500px↑ : 짝지어 볼 표들을 2단으로 나란히 배치해 스크롤을 줄임 */
+  .duo{display:grid;grid-template-columns:1fr;gap:22px;}
+  @media (min-width:1500px){
+    .duo{grid-template-columns:1fr 1fr;}          /* 구분별↔유형별, 항목별↔시험자별 나란히 */
+    .duo > div{min-width:0;}                      /* 그리드 안에서 표가 넘치지 않게 */
+  }
+  @media (min-width:1900px){
+    .wrap{max-width:1860px;}
+  }
+  /* 대형 모니터 보고 시 가독성 — 글자·KPI 확대 */
+  @media (min-width:1500px){
+    body{font-size:15px;}
+    .wkpi .n{font-size:34px;}
+    table{font-size:14px;}
+    #tbl-list{font-size:13px;}
+    .sec-title{font-size:15px;}
+  }
+
+  /* 헤더 */
+  header{background:linear-gradient(180deg,var(--navy),#1f4a86);color:#fff;padding:20px 0 18px;margin-bottom:20px;box-shadow:0 2px 8px rgba(23,58,107,.15);}
+  header .wrap{display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+  header h1{font-size:20px;margin:0;letter-spacing:-.01em;font-weight:700;}
+  header .sub{font-size:12px;opacity:.82;margin-top:3px;}
+  header .sub b{opacity:1;}
+  .today{font-family:var(--mono);font-size:12px;opacity:.9;}
+  .capbtn{background:rgba(255,255,255,.14);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;padding:8px 14px;font-size:12.5px;cursor:pointer;font-weight:600;}
+  .capbtn:hover{background:rgba(255,255,255,.24);}
+
+  /* 입력 */
+  .inputbox{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:14px 16px;margin-bottom:20px;box-shadow:0 1px 3px rgba(21,37,64,.05);}
+  .inputbox label{font-weight:700;font-size:13px;color:var(--navy);}
+  .hint{color:var(--muted);font-size:12px;margin:4px 0 10px;}
+  .drop{display:flex;align-items:center;gap:14px;flex-wrap:wrap;border:1.5px dashed var(--line);border-radius:9px;padding:16px;background:#f7fafd;transition:.15s;}
+  .drop.drag{border-color:var(--accent);background:var(--accent-soft);}
+  .filemeta{font-family:var(--mono);font-size:12px;color:var(--muted);}
+  .filemeta b{color:var(--ink);}
+  .rule{font-size:12px;color:var(--muted);margin-top:10px;}
+  .rule b{color:var(--ink);}
+
+  /* 공통 카드/섹션 */
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:12px;padding:15px 17px;box-shadow:0 1px 3px rgba(21,37,64,.05);}
+  .sec-title{font-size:14px;font-weight:700;color:var(--navy);margin:26px 0 10px;display:flex;align-items:center;gap:8px;}
+  .sec-title .tag{font-size:11px;color:var(--muted);font-weight:400;}
+  .sec-title::before{content:"";width:4px;height:15px;background:var(--accent);border-radius:2px;display:inline-block;}
+  .sec-title.toggle{cursor:pointer;user-select:none;}
+  .sec-title.toggle .caret{display:inline-block;transition:transform .15s;font-size:11px;color:var(--accent);margin-right:-2px;}
+  .sec-title.toggle.collapsed .caret{transform:rotate(-90deg);}
+  .collapsed-body{display:none;}
+  /* 접수 건수 추이 차트 */
+  .pt-btns{display:flex;gap:6px;align-items:center;margin-bottom:12px;}
+  .ptbtn{border:1px solid #b7cae6;background:var(--panel);border-radius:7px;padding:5px 14px;font-size:12.5px;cursor:pointer;color:var(--muted);}
+  .ptbtn.active{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:600;}
+  .pt-hint{font-size:11.5px;color:var(--muted);margin-left:6px;}
+  .intakechart{display:flex;align-items:flex-end;gap:6px;height:158px;overflow-x:auto;padding:10px 2px 4px;}
+  .ibar{flex:0 0 46px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:5px;}
+  .ibar .bar{width:72%;background:linear-gradient(180deg,var(--accent),#3d82c4);border-radius:3px 3px 0 0;min-height:2px;}
+  .ibar .v{font-family:var(--mono);font-size:11px;font-weight:600;color:var(--ink);}
+  .ibar .lb{font-size:10px;color:var(--muted);white-space:nowrap;text-align:center;line-height:1.15;}
+  .itemscroll{max-height:400px;overflow:auto;border:1px solid var(--line);border-radius:12px;box-shadow:0 1px 3px rgba(21,37,64,.05);}
+  .itemscroll table{border:none;border-radius:0;box-shadow:none;}
+  .itemscroll th{position:sticky;top:0;z-index:2;}
+
+  /* 주간보고 요약존 */
+  .weekly{background:linear-gradient(180deg,#eaf1fa,#f4f8fd);border:1px solid #cddcf0;border-radius:14px;padding:16px 18px;margin-bottom:6px;}
+  .weekly .wlabel{font-size:12px;font-weight:700;color:var(--navy);letter-spacing:.02em;margin-bottom:12px;display:flex;align-items:center;gap:7px;}
+  .weekly .wlabel .pin{background:var(--accent);color:#fff;font-size:10px;padding:2px 8px;border-radius:20px;font-weight:700;}
+  .wgrid{display:grid;grid-template-columns:repeat(7,1fr);gap:12px;}
+  .wkpi{text-align:left;}
+  .wkpi .n{font-family:var(--mono);font-size:27px;font-weight:700;font-variant-numeric:tabular-nums;line-height:1;color:var(--navy);}
+  .wkpi .n small{font-size:14px;font-weight:600;color:var(--muted);}
+  .wkpi .l{font-size:11.5px;color:var(--muted);margin-top:5px;}
+  .wkpi.good .n{color:var(--done);} .wkpi.warn .n{color:var(--warn);} .wkpi.over .n{color:var(--over);}
+
+  /* 진행현황: 도넛 + 경과경고 */
+  .top2{display:grid;grid-template-columns:290px 1fr;gap:14px;}
+  .card h3{margin:0 0 12px;font-size:13px;color:var(--navy);}
+  .donutwrap{display:flex;align-items:center;gap:16px;}
+  .donut{width:124px;height:124px;border-radius:50%;flex:none;position:relative;}
+  .donut::after{content:"";position:absolute;inset:27px;background:var(--panel);border-radius:50%;}
+  .donut .ctr{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;z-index:1;}
+  .donut .ctr b{font-family:var(--mono);font-size:21px;color:var(--navy);} .donut .ctr span{font-size:11px;color:var(--muted);}
+  .dleg{font-size:12px;flex:1;}
+  .dleg div{display:flex;justify-content:space-between;gap:14px;padding:3px 0;}
+  .dot{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:6px;vertical-align:0;}
+  .aging{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;}
+  .atile{border:1px solid var(--line);border-radius:10px;padding:11px 13px;border-left-width:4px;}
+  .atile .an{font-family:var(--mono);font-size:24px;font-weight:700;}
+  .atile .al{font-size:11.5px;color:var(--muted);}
+  .atile .bar{height:5px;border-radius:3px;background:#eef2f7;margin-top:8px;position:relative;overflow:hidden;}
+  .atile .bar > span{position:absolute;left:0;top:0;height:100%;border-radius:3px;}
+  .atile.ok{border-left-color:var(--ok);} .atile.caution{border-left-color:var(--caution);}
+  .atile.warn{border-left-color:var(--warn);} .atile.over{border-left-color:var(--over);}
+  .miss{font-size:11.5px;color:var(--over);margin-top:11px;font-weight:600;}
+
+  /* 표 (가시성 강화: 진한 테두리 + 헤더 하단 강조선 + 얼룩무늬 + 호버) */
+  table{width:100%;border-collapse:separate;border-spacing:0;background:var(--panel);border:1.5px solid #b9c8dd;border-radius:12px;overflow:hidden;font-size:13px;box-shadow:0 1px 4px rgba(21,37,64,.08);}
+  th,td{padding:8px 12px;text-align:left;border-bottom:1px solid #e2e9f2;border-right:1px solid #eef2f7;vertical-align:top;}
+  th:last-child,td:last-child{border-right:none;}
+  th{background:#dfe8f4;font-weight:700;font-size:12px;color:var(--navy);border-bottom:2px solid #a9bfdd;}
+  td.num,th.num{text-align:right;font-family:var(--mono);font-variant-numeric:tabular-nums;}
+  tbody tr:nth-child(even){background:#f6f9fd;}
+  tbody tr:hover{background:#eaf1fb;}
+  tr:last-child td{border-bottom:none;}
+  .minibar{height:7px;border-radius:3px;background:#e4ebf4;position:relative;min-width:60px;border:1px solid #d6e0ee;}
+  .minibar > span{position:absolute;left:0;top:0;height:100%;border-radius:3px;background:var(--accent);}
+  /* 상태 구성 스택 막대 (구분별·유형별) */
+  .stackbar{display:flex;height:14px;border-radius:4px;overflow:hidden;background:#eef2f7;border:1px solid #d6e0ee;min-width:90px;}
+  .stackbar > span{display:block;height:100%;}
+  .stack-legend{display:flex;gap:14px;font-size:11px;color:var(--muted);margin:2px 0 8px;}
+  .stack-legend span .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;vertical-align:0;}
+  /* 지연 원인 분석 */
+  .oneline{background:var(--accent-soft);border:1px solid #cfe0ee;border-radius:10px;padding:12px 15px;font-size:13.5px;margin-bottom:14px;line-height:1.65;}
+  .stagebar{display:flex;gap:2px;height:38px;border-radius:8px;overflow:hidden;margin:24px 0 8px;}
+  .stagebar > div{display:flex;align-items:center;justify-content:center;color:#fff;font-size:12px;font-weight:600;min-width:44px;position:relative;}
+  .stagebar .lbl{position:absolute;top:-19px;left:0;color:var(--muted);font-size:10.5px;font-weight:400;white-space:nowrap;}
+  .st1{background:#7fa8d4;} .st2{background:#5b8ac2;} .st3{background:#c0392b;} .st4{background:#8e9db0;}
+  /* 병목 구간 뱃지 — 구간 종류별 색 (막대 색과 일치) */
+  .bneck{padding:2px 9px;border-radius:10px;font-size:11px;font-weight:700;white-space:nowrap;display:inline-block;}
+  .bneck.b1{background:#e3edf7;color:#2f5d8a;}   /* ① 착수대기 */
+  .bneck.b2{background:#dbe7f4;color:#24507f;}   /* ② 시험수행 */
+  .bneck.b3{background:#fdeeeb;color:#c0392b;}   /* ③ 검토대기 */
+  .bneck.b4{background:#eceff3;color:#5b6879;}   /* ④ 보고·불출 */
+  .bneck.ok{background:#eef2f7;color:var(--muted);font-weight:400;}
+  /* 병목 구간 셀 강조 — 구간별 색 */
+  td.hot1{background:#e9f1f9;color:#2f5d8a;font-weight:700;}
+  td.hot2{background:#e0eaf6;color:#24507f;font-weight:700;}
+  td.hot3{background:#fdeeeb;color:#c0392b;font-weight:700;}
+  td.hot4{background:#eff2f6;color:#5b6879;font-weight:700;}
+  td.hot{background:#fdeeeb;color:var(--over);font-weight:700;}
+  /* 경과 구간별 시험항목 분포 */
+  .tiergrid{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;}
+  @media (max-width:1100px){ .tiergrid{grid-template-columns:repeat(2,1fr);} }
+  .tiercard{border:1px solid var(--line);border-radius:12px;background:var(--panel);padding:12px 14px;border-top:4px solid var(--line);}
+  .tiercard.t1{border-top-color:var(--ok);} .tiercard.t2{border-top-color:var(--caution);}
+  .tiercard.t3{border-top-color:var(--warn);} .tiercard.t4{border-top-color:var(--over);}
+  .tiercard h4{margin:0 0 2px;font-size:13px;display:flex;justify-content:space-between;align-items:baseline;}
+  .tiercard .cnt{font-family:var(--mono);font-size:22px;font-weight:700;}
+  .tiercard .sub{color:var(--muted);font-size:11px;margin-bottom:8px;}
+  .tiercard ul{list-style:none;margin:0;padding:0;max-height:190px;overflow:auto;}
+  .tiercard li{display:flex;justify-content:space-between;gap:8px;font-size:12px;padding:3px 6px;border-radius:6px;cursor:pointer;}
+  .tiercard li:hover{background:var(--accent-soft);}
+  .tiercard li b{font-family:var(--mono);color:var(--muted);}
+  .tiercard .none{color:var(--muted);font-size:12px;padding:6px 0;}
+  /* 지연사유 — 작성 여부로 색 구분 */
+  #tbl-list textarea.reason{border:1.5px solid var(--over);background:#fdeeeb;}      /* 미작성 = 빨강 */
+  #tbl-list textarea.reason.filled{border-color:var(--done);background:#eefaf5;}      /* 작성됨 = 초록 */
+  /* 정렬 가능한 표 헤더 */
+  th.sortable{cursor:pointer;user-select:none;white-space:nowrap;}
+  th.sortable:hover{background:#d3e0f0;}
+  th.sortable .sortind{font-size:10px;color:var(--accent);margin-left:3px;}
+  /* 시험항목별 구분 토글 */
+  .itemrow{cursor:pointer;}
+  .itemrow:hover{background:var(--accent-soft)!important;}
+  .itcaret{color:var(--accent);font-size:10px;display:inline-block;width:14px;transition:transform .1s;}
+  .subrow{display:none;background:#f4f8fc;}
+  .subrow.show{display:table-row;}
+  /* 시험자 × 주 완료 그리드(히트맵) */
+  .twscroll{overflow:auto;max-height:460px;border:1.5px solid #b9c8dd;border-radius:12px;}
+  #tbl-tw{border:none;border-radius:0;font-size:12px;}
+  #tbl-tw th,#tbl-tw td{text-align:center;padding:6px 8px;border-right:1px solid #eef2f7;white-space:nowrap;}
+  #tbl-tw thead th{position:sticky;top:0;z-index:3;background:#dfe8f4;}
+  #tbl-tw td.name,#tbl-tw th.name{position:sticky;left:0;z-index:2;background:#f2f6fb;text-align:left;font-weight:600;box-shadow:1px 0 0 #d6e0ee;}
+  #tbl-tw thead th.name{z-index:4;}
+  #tbl-tw td.tot,#tbl-tw th.tot{font-weight:700;background:#eef4fb;}
+  #tbl-tw .z0{color:#c2ccd9;}
+  /* 수요 vs 처리량 */
+  .flowsummary{display:flex;gap:22px;flex-wrap:wrap;margin-bottom:12px;font-size:13px;}
+  .flowsummary b{font-family:var(--mono);font-size:18px;}
+  .flowlegend{display:flex;gap:16px;font-size:11.5px;color:var(--muted);margin-bottom:8px;}
+  .flowlegend .sw{display:inline-block;width:9px;height:9px;border-radius:2px;margin-right:4px;}
+  .flowchart{display:flex;align-items:flex-end;gap:10px;height:180px;overflow-x:auto;padding:16px 2px 4px;border-bottom:1px solid var(--line);}
+  .fcol{flex:0 0 52px;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:3px;}
+  .fbars{display:flex;align-items:flex-end;gap:3px;height:100%;width:100%;justify-content:center;}
+  .fbars .fb{width:14px;border-radius:3px 3px 0 0;min-height:2px;position:relative;}
+  .fbars .fb.recv{background:var(--accent);}
+  .fbars .fb.done{background:var(--done);}
+  .fb .fbv{position:absolute;top:-15px;left:50%;transform:translateX(-50%);font-size:10px;font-family:var(--mono);color:var(--ink);}
+  .fcol .flb{font-size:10px;color:var(--muted);white-space:nowrap;}
+  .fcol .fnet{font-size:10.5px;font-family:var(--mono);font-weight:700;}
+  .fnet.pos{color:var(--over);} .fnet.neg{color:var(--done);}
+  .backstrip{display:flex;gap:10px;margin-top:8px;overflow-x:auto;}
+  .bcell{flex:0 0 52px;text-align:center;font-size:10px;font-family:var(--mono);color:var(--muted);}
+  .bcell .bv{display:block;font-weight:700;}
+  /* D-day 뱃지 */
+  .dday{display:inline-block;font-family:var(--mono);font-size:10.5px;padding:0 5px;border-radius:10px;background:#eef2f7;color:var(--muted);}
+  .dday.near{background:#faf0d9;color:#a9720f;font-weight:600;}   /* 마감 임박(≤5일) */
+  .dday.over{background:#fdeeeb;color:var(--over);font-weight:700;}/* 마감 초과 */
+
+  /* 필터 */
+  .filterbox{background:var(--accent-soft);border:1px solid #bcd2ee;border-radius:12px;padding:12px 14px;margin:6px 0 12px;box-shadow:inset 0 1px 2px rgba(33,102,172,.06);}
+  .filterbar-title{font-size:12px;font-weight:700;color:var(--accent);margin-bottom:9px;letter-spacing:.02em;}
+  .filters{display:flex;flex-wrap:wrap;gap:8px;align-items:center;}
+  .filters input[type=text],.filters select{border:1px solid #b7cae6;border-radius:8px;padding:6px 10px;font-size:13px;background:var(--panel);color:var(--ink);}
+  .filters select{cursor:pointer;}
+  .searchbox{min-width:230px !important;border:2px solid var(--accent) !important;font-weight:500;}
+  .searchbox::placeholder{color:#8aa4c8;}
+  .chk{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--ink);background:var(--panel);border:1px solid #b7cae6;border-radius:8px;padding:5px 10px;cursor:pointer;}
+  .btn{border:1px solid #b7cae6;background:var(--panel);border-radius:8px;padding:6px 12px;font-size:12.5px;cursor:pointer;color:var(--ink);}
+  .btn:hover{border-color:var(--accent);color:var(--accent);}
+  .daterange{display:inline-flex;align-items:center;gap:5px;font-size:12.5px;color:var(--muted);background:var(--panel);border:1px solid #b7cae6;border-radius:8px;padding:4px 10px;}
+  .daterange input[type=date]{border:1px solid var(--line);border-radius:6px;padding:3px 6px;font-size:12px;font-family:var(--mono);color:var(--ink);}
+  .daterange .btn{padding:2px 8px;}
+  .count{font-size:12px;color:var(--accent);margin-left:auto;font-family:var(--mono);font-weight:600;}
+
+  /* 리드타임 패널 */
+  .leadpanel{padding:15px 17px;margin-bottom:10px;}
+  .leadgrid{display:grid;grid-template-columns:repeat(5,1fr) 1.4fr;gap:12px;align-items:center;}
+  .lkpi{border-right:1px solid var(--line);padding-right:12px;}
+  .lkpi:nth-child(5){border-right:none;}
+  .lkpi .ln{font-family:var(--mono);font-size:22px;font-weight:700;font-variant-numeric:tabular-nums;color:var(--accent);}
+  .lkpi .ll{font-size:11.5px;color:var(--muted);margin-top:2px;}
+  .ltarget{font-size:12px;}
+  .ltarget .row{display:flex;justify-content:space-between;gap:10px;padding:3px 0;}
+  .ltarget b{font-family:var(--mono);}
+  .histo{display:flex;align-items:flex-end;gap:8px;height:92px;margin-top:14px;padding-top:4px;}
+  .hbar{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:flex-end;height:100%;gap:4px;}
+  .hbar .bar{width:100%;background:var(--accent);border-radius:4px 4px 0 0;min-height:2px;}
+  .hbar .bar.over{background:var(--over);}
+  .hbar .hv{font-family:var(--mono);font-size:11px;color:var(--ink);}
+  .hbar .hl{font-size:10.5px;color:var(--muted);text-align:center;line-height:1.2;}
+  .leadnote{font-size:11.5px;color:var(--muted);margin-top:11px;}
+
+  /* 리스트 */
+  .listwrap{max-height:640px;overflow-y:auto;overflow-x:hidden;border:1.5px solid #b9c8dd;border-radius:12px;box-shadow:0 1px 4px rgba(21,37,64,.08);}
+  #tbl-list{border:none;border-radius:0;box-shadow:none;width:100%;table-layout:fixed;font-size:12px;}
+  #tbl-list th,#tbl-list td{padding:7px 9px;overflow:hidden;text-overflow:ellipsis;}
+  #tbl-list th{position:sticky;top:0;z-index:2;}
+  /* 짧은 열은 한 줄, 긴 열(검체/항목·지연사유)은 줄바꿈 허용 → 가로 스크롤 없이 한 화면에 */
+  #tbl-list td.wrapcell{white-space:normal;word-break:break-word;line-height:1.35;}
+  #tbl-list col.c-recv{width:8%;} #tbl-list col.c-sample{width:16%;} #tbl-list col.c-batch{width:9%;}
+  #tbl-list col.c-sero{width:5%;} #tbl-list col.c-group{width:11%;} #tbl-list col.c-type{width:6%;}
+  #tbl-list col.c-tester{width:7%;} #tbl-list col.c-recvdate{width:7%;} #tbl-list col.c-elapsed{width:6%;}
+  #tbl-list col.c-lead{width:5%;} #tbl-list col.c-stat{width:5%;} #tbl-list col.c-warn{width:5%;} #tbl-list col.c-reason{width:15%;}
+  .badge{display:inline-block;font-size:11px;padding:1px 8px;border-radius:20px;font-family:var(--mono);white-space:nowrap;}
+  .b-done{background:#e0f1ec;color:var(--done);} .b-wip{background:#faf0d9;color:#a9720f;}
+  .b-todo{background:#eaeef4;color:#5b6879;} .b-na{background:#eef1f5;color:#8794a8;}
+  .b-err{background:#fdeeeb;color:var(--over);font-weight:700;}   /* 보고서첨부 이상값 = 완료 아님 */
+  .t-ok{color:var(--ok);} .t-caution{color:var(--caution);} .t-warn{color:var(--warn);font-weight:600;} .t-over{color:var(--over);font-weight:700;}
+  tr.row-warn{background:#fdf6ef;} tr.row-over{background:#fdeeeb;}
+  .reason{width:100%;min-width:200px;border:1px solid var(--line);border-radius:6px;padding:5px 7px;font-family:var(--font);font-size:12px;resize:vertical;min-height:34px;background:#fffdf7;}
+  .reason.empty{border-color:var(--over);background:#fdeeeb;}
+  .needtag{font-size:10.5px;color:var(--over);font-weight:600;display:block;margin-bottom:3px;}
+  .empty-msg{color:var(--muted);font-size:13px;padding:22px;text-align:center;}
+  .foot{color:var(--muted);font-size:11.5px;margin-top:14px;}
+  .foot b{color:var(--ink);}
+
+  /* ===== 보고용 캡처 모드: 입력·필터 UI 숨김 ===== */
+  body.capture .hide-on-capture{display:none !important;}
+  body.capture .listwrap{max-height:none;}          /* 캡처 시 리스트 전체 표시 */
+  @media print{ .hide-on-capture{display:none !important;} .listwrap{max-height:none;} header{box-shadow:none;} }
+</style>
+</head>
+<body>
+<header>
+  <div class="wrap">
+    <div>
+      <h1>PCV 시험현황 대시보드</h1>
+      <div class="sub">소요기간 = <b>리드타임(접수일 → 일지검토수행일)</b> · 접수 후 5주 타겟 · <span class="today" id="today"></span></div>
+    </div>
+    <button class="capbtn" id="capbtn">📸 보고용 캡처 모드</button>
+  </div>
+</header>
+
+<div class="wrap">
+  <div class="inputbox hide-on-capture">
+    <label>CSV 파일 올리기</label>
+    <div class="hint">엑셀에서 <b>다른 이름으로 저장 → ‘CSV UTF-8(쉼표로 분리)(*.csv)’</b>로 저장한 파일을 올리세요.
+      헤더 행(제품·검체명…비고)이 포함돼야 하며, 전체(연간·전제품) 파일도 한 번에 처리됩니다.</div>
+    <div class="drop" id="drop">
+      <input type="file" id="csv" accept=".csv,text/csv">
+      <span class="filemeta" id="filemeta">여기로 CSV를 끌어다 놓거나 파일을 선택하세요 · 파일은 브라우저 안에서만 처리됩니다</span>
+      <button class="btn" id="btn-clear-data" style="display:none;margin-left:auto">데이터 지우기</button>
+    </div>
+    <div style="margin-top:8px">
+      <textarea id="main-paste" placeholder="엑셀에서 시험관리표 전체(헤더 포함)를 복사해 여기에 붙여넣으세요 — 탭 구분 자동 인식" style="width:100%;min-height:70px;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
+      <button class="btn" id="btn-main-paste" style="margin-top:6px">붙여넣은 관리표 분석</button>
+    </div>
+    <div class="rule">완료 = <b>보고서첨부 채워짐</b> · 리드타임 = <b>접수일→일지검토수행일</b>(둘 다 있을 때 산출)
+      · 경고(미완료): <b>2주 초과</b>=주의, <b>4주 초과</b>=경고, <b>5주 초과</b>=타겟초과 · D-day = <b>완료요구일(접수+35일 또는 CSV값)</b>까지 남은 일수
+      · <b>업로드한 데이터는 이 브라우저에 저장</b>되어 새로고침·재접속해도 유지됩니다(외부 전송 없음).</div>
+
+    <label style="margin-top:12px;display:block">시험자 인증(자격) 표 올리기 <span style="font-weight:400;color:var(--muted);font-size:12px">— 선택 · CSV 업로드 또는 붙여넣기</span></label>
+    <div class="hint">시험법(SOP)별 인증 현황(O / 진행중 / -)을 넣으면 <b>인증 매트릭스·단일점 위험</b> 분석이 추가됩니다.
+      회사 환경에서 파일 반출이 어려우면 <b>엑셀에서 표를 복사해 아래에 붙여넣기</b>(탭 구분 자동 인식)하세요.</div>
+    <div class="drop" id="drop-cert">
+      <input type="file" id="cert-csv" accept=".csv,text/csv">
+      <span class="filemeta" id="cert-meta">인증표 CSV를 선택하거나, 아래에 붙여넣으세요 (선택 사항)</span>
+      <button class="btn" id="btn-clear-cert" style="display:none;margin-left:auto">인증표 지우기</button>
+    </div>
+    <div style="margin-top:8px">
+      <textarea id="cert-paste" placeholder="엑셀에서 인증표 전체(헤더 포함)를 복사해 여기에 붙여넣으세요 — 탭 구분 자동 인식" style="width:100%;min-height:60px;border:1px solid var(--line);border-radius:8px;padding:8px;font-family:var(--mono);font-size:12px;resize:vertical"></textarea>
+      <button class="btn" id="btn-cert-paste" style="margin-top:6px">붙여넣은 인증표 분석</button>
+    </div>
+  </div>
+
+  <div id="result" style="display:none;">
+
+    <!-- 주간보고 요약존 -->
+    <div class="weekly">
+      <div class="wlabel"><span class="pin">주간 보고 요약</span> 전체 데이터 · <b id="w-total-note">제조번호(배치) 기준 집계</b></div>
+      <div class="wgrid">
+        <div class="wkpi good"><div class="n" id="w-rate">0<small>%</small></div><div class="l">완료율</div></div>
+        <div class="wkpi"><div class="n" id="w-open">0</div><div class="l">진행 중(진행+미착수)</div></div>
+        <div class="wkpi warn"><div class="n" id="w-over4">0</div><div class="l">4주 초과 미완료</div></div>
+        <div class="wkpi over"><div class="n" id="w-over5">0</div><div class="l">5주 초과(타겟초과)</div></div>
+        <div class="wkpi"><div class="n" id="w-lead">–<small>d</small></div><div class="l">평균 리드타임</div></div>
+        <div class="wkpi over"><div class="n" id="w-noreason">0</div><div class="l">지연사유 미작성</div></div>
+        <div class="wkpi over"><div class="n" id="w-bad">0</div><div class="l">보고서첨부 이상값</div></div>
+      </div>
+    </div>
+
+    <!-- 진행현황 -->
+    <div class="sec-title">진행현황</div>
+    <div class="top2">
+      <div class="card">
+        <h3>상태 분포</h3>
+        <div class="donutwrap">
+          <div class="donut" id="donut"><div class="ctr"><b id="donut-rate">0%</b><span>완료율</span></div></div>
+          <div class="dleg" id="donut-leg"></div>
+        </div>
+      </div>
+      <div class="card">
+        <h3>미완료 건 경과 경고 <span style="font-weight:400;color:var(--muted);font-size:11px">(접수 후 경과 · 진행+미착수)</span></h3>
+        <div class="aging">
+          <div class="atile ok"><div class="an" id="a-ok">0</div><div class="al">정상 · 2주 이내</div><div class="bar"><span id="ab-ok" style="background:var(--ok)"></span></div></div>
+          <div class="atile caution"><div class="an" id="a-caution">0</div><div class="al">주의 · 2주 초과</div><div class="bar"><span id="ab-caution" style="background:var(--caution)"></span></div></div>
+          <div class="atile warn"><div class="an" id="a-warn">0</div><div class="al">경고 · 4주 초과</div><div class="bar"><span id="ab-warn" style="background:var(--warn)"></span></div></div>
+          <div class="atile over"><div class="an" id="a-over">0</div><div class="al">타겟초과 · 5주 초과</div><div class="bar"><span id="ab-over" style="background:var(--over)"></span></div></div>
+        </div>
+        <div class="miss" id="missmsg"></div>
+      </div>
+    </div>
+
+    <!-- 구분별 · 유형별 (와이드 화면에서 2단) -->
+    <div class="duo">
+      <div>
+        <div class="sec-title toggle" data-target="wrap-group"><span class="caret">▾</span>구분별 진행현황 <span class="tag">— 제조번호 자동 분류</span></div>
+        <div id="wrap-group">
+        <div class="stack-legend"><span><span class="sw" style="background:var(--done)"></span>완료</span><span><span class="sw" style="background:var(--wip)"></span>진행</span><span><span class="sw" style="background:var(--todo)"></span>미착수</span> · 제조번호 기준</div>
+        <table id="tbl-group"><thead><tr>
+          <th>구분</th><th class="num">접수</th><th class="num">완료</th><th class="num">진행</th>
+          <th class="num" title="미완료(진행+미착수) 중 접수 후 4주(28일) 초과">4주초과</th><th class="num">완료율</th><th style="width:110px">상태 구성</th>
+        </tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+      <div>
+        <div class="sec-title toggle" data-target="wrap-type"><span class="caret">▾</span>유형별 진행현황 <span class="tag">(원액·안정성·IPC·특별·완제품 등)</span></div>
+        <div id="wrap-type">
+        <div class="stack-legend"><span><span class="sw" style="background:var(--done)"></span>완료</span><span><span class="sw" style="background:var(--wip)"></span>진행</span><span><span class="sw" style="background:var(--todo)"></span>미착수</span> · 배치가 여러 유형이면 각각 집계</div>
+        <table id="tbl-type"><thead><tr>
+          <th>유형</th><th class="num">접수</th><th class="num">완료</th><th class="num">진행</th>
+          <th class="num">미착수</th><th class="num" title="미완료(진행+미착수) 중 접수 후 4주(28일) 초과">4주초과</th><th class="num">완료율</th><th style="width:110px">상태 구성</th>
+        </tr></thead><tbody></tbody></table>
+        </div>
+      </div>
+    </div>
+
+    <!-- 수요 vs 처리량 (적자/흑자) -->
+    <div class="sec-title toggle" data-target="wrap-flow"><span class="caret">▾</span>수요 vs 처리량 <span class="tag">— 주별 접수 vs 완료(접수번호 기준) · 누적 backlog · 완료=그 접수 전체 완료(일지검토일→없으면 첨부일)</span></div>
+    <div id="wrap-flow">
+      <div class="card">
+        <div class="flowsummary" id="flow-summary"></div>
+        <div class="flowlegend"><span><span class="sw" style="background:var(--accent)"></span>접수(수요)</span><span><span class="sw" style="background:var(--done)"></span>완료(처리량)</span><span><span class="sw" style="background:var(--over)"></span>누적 backlog(적자)</span></div>
+        <div class="flowchart" id="flow-chart"></div>
+        <div class="leadnote" id="flow-note"></div>
+      </div>
+    </div>
+
+    <!-- 접수 건수 추이 -->
+    <div class="sec-title toggle" data-target="wrap-intake"><span class="caret">▾</span>접수 건수 추이 <span class="tag">— 접수일 기준 · 접수번호 고유 건수</span></div>
+    <div id="wrap-intake">
+      <div class="card">
+        <div class="pt-btns">
+          <button class="ptbtn active" data-p="week">주차별</button>
+          <button class="ptbtn" data-p="month">월별</button>
+          <span class="pt-hint" id="intake-hint"></span>
+        </div>
+        <div class="intakechart" id="intake-chart"></div>
+      </div>
+    </div>
+
+    <!-- 시험항목별 의뢰 건수 -->
+    <div class="sec-title toggle" data-target="wrap-items"><span class="caret">▾</span>시험항목별 의뢰 건수 <span class="tag">— SOP 기준 표준 시험명으로 통합 · 항목 클릭 시 제품 구분 펼침 ▸ · '비표준'=마스터 미매핑(확인 필요)</span></div>
+    <div id="wrap-items">
+      <div class="itemscroll">
+        <table id="tbl-items"><thead><tr>
+          <th style="width:44px">#</th><th>시험항목</th><th class="num">의뢰</th>
+          <th class="num">완료</th><th class="num">미완료</th><th class="num">완료율</th><th style="width:150px">비중</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+
+    <!-- 시험자별 집계 -->
+    <div class="sec-title toggle" data-target="wrap-tester"><span class="caret">▾</span>시험자별 집계 <span class="tag">— 공동 시험은 각자 1건(참여 건수) · 많은 순</span></div>
+    <div id="wrap-tester">
+      <div class="filters" style="margin-bottom:10px">
+        <span style="font-size:12.5px;color:var(--muted)">시험항목으로 보기(누가 하는지):</span>
+        <select id="ft-item"><option value="">전체 시험항목</option></select>
+        <button class="btn" id="ft-item-clear">✕ 해제</button>
+      </div>
+      <div class="itemscroll">
+        <table id="tbl-tester"><thead><tr>
+          <th style="width:44px">#</th><th>시험자</th><th class="num">참여</th>
+          <th class="num">완료</th><th class="num">미완료</th><th class="num">완료율</th>
+          <th class="num">평균 리드타임</th><th>담당 시험항목</th><th style="width:110px">비중</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="foot" style="margin-top:6px">※ 공동 시험(예: 홍길동/김영미)은 각자 1건으로 집계되어 <b>참여 합계가 총 시험건수보다 큽니다</b> · 평균 리드타임 = 접수일→일지검토수행일(산출 가능한 건만)</div>
+
+      <!-- 시험자 × 주 완료 그리드 -->
+      <div class="sec-title toggle" data-target="wrap-tw" style="margin-top:18px"><span class="caret">▾</span>시험자별 주별 완료 건수 <span class="tag">— 일지검토수행일 기준 주(목요일 포함) · 완료 시험항목 수</span></div>
+      <div id="wrap-tw">
+        <div class="twscroll"><table id="tbl-tw"><thead></thead><tbody></tbody></table></div>
+        <div class="foot" style="margin-top:6px">셀 = 그 주에 <b>완료(보고서첨부)된 시험항목</b> 중 일지검토수행일이 그 주에 속한 건수 · 색이 진할수록 많음 · 공동시험은 각자 1건</div>
+      </div>
+    </div>
+
+    <!-- 시험자별 WIP (현재 부하) -->
+    <div class="sec-title toggle" data-target="wrap-wip"><span class="caret">▾</span>시험자별 현재 부하(WIP) <span class="tag">— 미완료(진행+미착수) 건 · 접수→오늘 경과 위험별 · 공동시험 각자 1건</span></div>
+    <div id="wrap-wip">
+      <div class="stack-legend">
+        <span><span class="sw" style="background:var(--ok)"></span>정상(≤2주)</span>
+        <span><span class="sw" style="background:var(--caution)"></span>주의(2주+)</span>
+        <span><span class="sw" style="background:var(--warn)"></span>경고(4주+)</span>
+        <span><span class="sw" style="background:var(--over)"></span>타겟초과(5주+)</span>
+        · 위험 가중 정렬(타겟초과·경고 많은 사람 먼저)
+      </div>
+      <div class="itemscroll">
+        <table id="tbl-wip"><thead><tr>
+          <th style="width:44px">#</th><th>시험자</th><th class="num">WIP</th>
+          <th class="num">정상</th><th class="num">주의</th><th class="num">경고</th><th class="num">타겟초과</th>
+          <th class="num">최고경과(일)</th><th style="width:150px">위험 구성</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="foot" style="margin-top:6px">WIP = 지금 그 사람이 안고 있는 미완료 시험항목 수 · 완료요구일 데이터가 없어 <b>접수→오늘 경과</b>로 지연 위험을 근사(마감 기준 아님) · 새 배정 시 <b>타겟초과·경고가 적고 WIP 낮은 사람</b>이 여유 있는 후보</div>
+    </div>
+
+    <!-- 인증(자격) 매트릭스 -->
+    <div id="cert-section" style="display:none">
+      <div class="sec-title toggle" data-target="wrap-cert-method"><span class="caret">▾</span>인증 현황(시험법별) <span class="tag">— 인증표 CSV 기준 · 인증자 수 적을수록 위험 · 단일점(1명)·무자격(0명) 강조</span></div>
+      <div id="wrap-cert-method">
+        <div class="flowsummary" id="cert-summary"></div>
+        <div class="itemscroll">
+          <table id="tbl-cert-method"><thead><tr>
+            <th>시험법(SOP)</th><th>제품</th><th class="num">인증자</th><th class="num">진행중</th><th>위험</th><th>인증자 목록</th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+        <div class="foot" style="margin-top:6px"><b>단일점(bus factor=1)</b> = 인증자 1명뿐 → 그 사람 부재 시 시험 불가 · <b>교육 최우선</b>. <b>무자격</b> = 인증자 0명(진행중만 있거나 없음).</div>
+      </div>
+
+      <div class="sec-title toggle" data-target="wrap-cert-tester"><span class="caret">▾</span>시험자별 인증 보유 <span class="tag">— 각자 인증 시험법 수·목록(멀티스킬 파악)</span></div>
+      <div id="wrap-cert-tester">
+        <div class="itemscroll">
+          <table id="tbl-cert-tester"><thead><tr>
+            <th style="width:44px">#</th><th>시험자</th><th class="num">인증 수</th><th class="num">진행중</th><th>인증 시험법</th>
+          </tr></thead><tbody></tbody></table>
+        </div>
+        <div class="foot" style="margin-top:6px">⚠ 이 표는 <b>인증표(공식 자격)</b> 기준입니다. 앞의 "시험자별 집계"(실제 수행 이력)와 대조하면 <b>자격은 있으나 안 하는 항목 / 자격 없이 하는 항목</b>을 점검할 수 있습니다(데이터완전성).</div>
+      </div>
+    </div>
+
+    <!-- ===== 지연 원인 분석 (누가 / 어떤 항목 / 왜) ===== -->
+    <div class="sec-title toggle" data-target="wrap-root"><span class="caret">▾</span>지연 원인 분석 <span class="tag">— 리드타임을 4구간으로 분해해 병목 규명</span></div>
+    <div id="wrap-root">
+      <div class="card">
+        <div id="root-insight" class="oneline"></div>
+        <div class="stagebar" id="stage-bar"></div>
+        <div class="leadnote">① 착수대기 = 접수→시험시작 · ② 시험수행 = 시작→검토요청 · ③ 검토대기 = 검토요청→검토수행 · ④ 보고·불출 = 검토수행→보고서첨부</div>
+      </div>
+
+      <div class="sec-title" style="font-size:13px">어떤 항목이 늦는가 <span class="tag">— 항목별 구간 분해(평균 일) · 병목 구간 강조</span></div>
+      <div class="itemscroll">
+        <table id="tbl-root-item"><thead><tr>
+          <th>시험항목</th><th class="num">건수</th><th class="num">① 착수대기</th><th class="num">② 시험수행</th>
+          <th class="num">③ 검토대기</th><th class="num">④ 보고·불출</th><th class="num">총 소요</th><th>병목</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="sec-title" style="font-size:13px">누가 늦는가 — 시험자 <span class="tag">— 착수대기·시험수행이 시험자 책임 구간</span></div>
+      <div class="itemscroll">
+        <table id="tbl-root-tester"><thead><tr>
+          <th>시험자</th><th class="num">건수</th><th class="num">① 착수대기</th><th class="num">② 시험수행</th>
+          <th class="num">③ 검토대기</th><th class="num">④ 보고·불출</th><th class="num">총 소요</th><th>병목</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="sec-title" style="font-size:13px">누가 늦는가 — 검토자 <span class="tag">— ③ 검토대기 = 검토자 책임 구간</span></div>
+      <div class="itemscroll">
+        <table id="tbl-root-rev"><thead><tr>
+          <th>일지검토자</th><th class="num">검토 건수</th><th class="num">③ 검토대기 평균</th><th class="num">최대</th><th class="num">7일 초과</th><th style="width:120px">지연 비중</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+
+      <div class="sec-title" style="font-size:13px">지연 건 원인 귀속 <span class="tag">— 완료: 총 소요 5주 초과 / 미완료: 접수 후 5주 경과(진행 중) · 가장 오래 걸린 구간 = 주원인</span></div>
+      <div class="itemscroll">
+        <table id="tbl-root-late"><thead><tr>
+          <th>접수번호</th><th>시험항목</th><th>시험자</th><th>검토자</th><th>상태</th><th class="num">소요/경과</th><th>주원인 구간</th><th class="num">해당 구간</th>
+        </tr></thead><tbody></tbody></table>
+      </div>
+      <div class="foot" style="margin-top:6px">※ 구간 계산은 각 날짜가 모두 입력된 건만 가능합니다. 날짜 누락이 많으면 원인 분석의 신뢰도가 떨어지므로, <b>입력 완전성이 곧 원인 규명의 전제</b>입니다.</div>
+    </div>
+
+    <!-- 경과 구간별 시험항목 분포 -->
+    <div class="sec-title toggle" data-target="wrap-tierit"><span class="caret">▾</span>경과 구간별 시험항목 <span class="tag">— 미완료 건이 어느 구간에 · 어떤 항목으로 쌓여 있는지 (구간 클릭 시 리스트 필터)</span></div>
+    <div id="wrap-tierit">
+      <div class="tiergrid" id="tier-grid"></div>
+      <div class="foot" style="margin-top:6px">미완료(진행+미착수) 건만 · 경과 = 접수일→오늘(KST) · 항목명 클릭 시 해당 구간+항목으로 리스트가 필터됩니다</div>
+    </div>
+
+    <!-- 리스트 + 필터 -->
+    <div class="sec-title">시험 리스트 <span class="tag">— 자료 소스용 · 4주 초과 미완료 건은 지연사유/계획 입력(자동 저장)</span></div>
+    <div class="filterbox hide-on-capture">
+      <div class="filterbar-title">🔍 검색 · 필터</div>
+      <div class="filters">
+      <input type="text" id="f-q" class="searchbox" placeholder="검색: 접수번호·검체·항목·제조번호">
+      <select id="f-product"><option value="">제품 전체</option></select>
+      <select id="f-status"><option value="">상태 전체</option><option>완료</option><option>진행</option><option>미착수</option><option>해당없음</option></select>
+      <select id="f-tier"><option value="">경고 전체</option><option>정상</option><option>주의</option><option>경고</option><option>타겟초과</option></select>
+      <select id="f-group"><option value="">구분 전체</option></select>
+      <select id="f-sero"><option value="">혈청형 전체</option></select>
+      <select id="f-type"><option value="">유형 전체</option></select>
+      <select id="f-item"><option value="">시험항목 전체</option></select>
+      <select id="f-tester"><option value="">시험자 전체</option></select>
+      <span class="daterange">접수일
+        <input type="date" id="f-from" title="시작일(이상)">~
+        <input type="date" id="f-to" title="종료일(이하)">
+        <button class="btn" id="btn-dclear" title="기간 초기화">✕</button>
+      </span>
+      <label class="chk"><input type="checkbox" id="f-over4"> 4주 초과 미완료만</label>
+      <label class="chk"><input type="checkbox" id="f-noreason"> 사유 미작성만</label>
+      <button class="btn" id="btn-reset">필터 초기화</button>
+      <button class="btn" id="btn-export">지연사유 내보내기</button>
+      <button class="btn" id="btn-import">불러오기</button>
+      <input type="file" id="import-file" accept=".json" style="display:none">
+      <span class="count" id="listcount"></span>
+      </div>
+    </div>
+
+    <!-- 리드타임 요약·분포 (필터 결과 연동) -->
+    <div class="card leadpanel">
+      <h3>리드타임 분석 <span style="font-weight:400;color:var(--muted);font-size:11px">접수일 → 일지검토수행일 · 현재 필터 결과 기준 · 타겟 5주(35일)</span></h3>
+      <div class="leadgrid">
+        <div class="lkpi"><div class="ln" id="l-n">0</div><div class="ll">산출 건수</div></div>
+        <div class="lkpi"><div class="ln" id="l-avg">–</div><div class="ll">평균(일)</div></div>
+        <div class="lkpi"><div class="ln" id="l-med">–</div><div class="ll">중앙값(일)</div></div>
+        <div class="lkpi"><div class="ln" id="l-min">–</div><div class="ll">최소(일)</div></div>
+        <div class="lkpi"><div class="ln" id="l-max">–</div><div class="ll">최대(일)</div></div>
+        <div class="ltarget">
+          <div class="row" style="font-weight:700;color:var(--navy);border-bottom:1px solid var(--line);padding-bottom:3px;margin-bottom:2px">경과 구간 <span style="font-weight:400;color:var(--muted);font-size:11px">미완료 · 접수→오늘</span></div>
+          <div class="row"><span style="color:var(--ok)">■ 2주 이내(≤14일)</span><b id="l-b1">–</b></div>
+          <div class="row"><span style="color:var(--caution)">■ 2주 초과(15~28일)</span><b id="l-b2">–</b></div>
+          <div class="row"><span style="color:var(--warn)">■ 4주 초과(29~35일)</span><b id="l-b3">–</b></div>
+          <div class="row"><span style="color:var(--over)">■ 타겟 초과(&gt;35일)</span><b id="l-b4">–</b></div>
+        </div>
+      </div>
+      <div class="histo" id="l-histo"></div>
+      <div class="leadnote" id="l-note"></div>
+    </div>
+
+    <div class="listwrap">
+      <table id="tbl-list">
+      <colgroup><col class="c-recv"><col class="c-sample"><col class="c-batch"><col class="c-sero"><col class="c-group"><col class="c-type"><col class="c-tester"><col class="c-recvdate"><col class="c-elapsed"><col class="c-lead"><col class="c-stat"><col class="c-warn"><col class="c-reason hide-on-capture"></colgroup>
+      <thead><tr>
+        <th>접수번호</th><th>검체 / 시험항목</th><th>제조번호</th><th>혈청형</th><th>구분</th><th>유형</th><th>시험자</th>
+        <th class="num">접수일</th><th class="num">경과 / D-day</th><th class="num">리드타임</th><th>상태</th><th>경고</th><th class="hide-on-capture">지연사유 / 계획</th>
+      </tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="foot">
+      <b>완료율</b> = 완료 ÷ (총건 − 해당없음) · <b>리드타임·타겟</b> = 접수일→일지검토수행일(KST) ·
+      지연사유는 브라우저에 자동 저장(파일 다시 올려도 유지), 백업은 <b>내보내기(JSON)</b> ·
+      보고서첨부 값이 날짜/‘완료’/‘첨부완료’가 아닌 경우(bnt·오탈자 등)는 데이터 확인 필요.
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===================== 1) CSV 파서 (RFC 4180, 쉼표) ===================== */
+function parseCSV(text){
+  const rows=[]; let cur=[]; let f=''; let q=false; let i=0;
+  while(i<text.length){
+    const c=text[i];
+    if(q){ if(c==='"'){ if(text[i+1]==='"'){f+='"';i+=2;continue;} q=false;i++;continue;} f+=c;i++;continue; }
+    if(c==='"'){q=true;i++;continue;}
+    if(c===','){cur.push(f);f='';i++;continue;}
+    if(c==='\r'){i++;continue;}
+    if(c==='\n'){cur.push(f);rows.push(cur);cur=[];f='';i++;continue;}
+    f+=c;i++;
+  }
+  cur.push(f); if(cur.some(x=>x!=='')) rows.push(cur);
+  return rows;
+}
+
+/* ===================== 2) KST 날짜 유틸 (UTC 밀림 방지) ===================== */
+function todayKST(){
+  return new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Seoul',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date());
+}
+function pickDate(s){
+  if(!s) return null;
+  const m=String(s).match(/(\d{4})[.\-]\s?(\d{1,2})[.\-]\s?(\d{1,2})/);
+  if(!m) return null;
+  const y=parseInt(m[1],10);
+  if(y<2015||y>2035) return null;            // 비현실적 연도(1900·2606 등 오입력) → 무효
+  const mo=m[2].padStart(2,'0'), d=m[3].padStart(2,'0');
+  if(mo>'12'||d>'31'||mo==='00'||d==='00') return null;
+  return `${m[1]}-${mo}-${d}`;
+}
+function daysBetween(a,b){ return Math.round((new Date(a+'T00:00:00')-new Date(b+'T00:00:00'))/86400000); }
+const TODAY=todayKST();
+
+/* ===================== 3) 상태/경고 분류 ===================== */
+/* 완료 판정 (B안 — 확정)
+   보고서첨부가 ①날짜 또는 ②'완료/첨부완료' 일 때만 완료.
+   그 외 값(bnt, 깨진 날짜 등)은 '이상값' → 완료로 인정하지 않고 확인 필요로 분리. */
+function isDoneText(r){ return /^(완료|첨부완료|첨부\s*완료)$/.test(r); }
+function categorize(report,start){
+  const r=(report||'').trim(), s=(start||'').trim();
+  if(r==='') return s==='' ? '미착수' : '진행';
+  if(r==='X'||r==='-') return '해당없음';
+  if(pickDate(r) || isDoneText(r)) return '완료';           // 날짜 또는 완료 텍스트
+  return '이상값';                                          // 그 외 → 확인 필요(완료 아님)
+}
+function agingTier(days){
+  if(days==null) return '미상';
+  if(days<=14) return '정상';
+  if(days<=28) return '주의';
+  if(days<=35) return '경고';
+  return '타겟초과';
+}
+function isAnomalyReport(report){
+  const r=(report||'').trim();
+  if(r===''||r==='X'||r==='-') return false;
+  if(/^(완료|첨부완료|첨부 완료)$/.test(r)) return false;
+  return !pickDate(r);
+}
+function needReason(r){ return (r.cat==='진행'||r.cat==='미착수') && r.days!=null && r.days>28; }
+
+/* ===================== 4) 헤더 매칭 ===================== */
+function colIndex(H,name){ let i=H.findIndex(h=>h.trim()===name); if(i<0) i=H.findIndex(h=>h.trim().includes(name)); return i; }
+
+/* ===================== 5) 지연사유 저장 (localStorage) ===================== */
+const LS_KEY='pcv_delay_reasons_v1';
+let DELAY={};
+function loadDelay(){ try{DELAY=JSON.parse(localStorage.getItem(LS_KEY)||'{}');}catch(e){DELAY={};} }
+function saveDelay(){ try{localStorage.setItem(LS_KEY,JSON.stringify(DELAY));}catch(e){} }
+function delayKey(r){ return [r.접수,r.항목,r.검체].join('||'); }
+
+/* ===================== 6) 제조번호 → 구분 분류 =====================
+   [확정 규칙 — 위에서부터 매칭, 구체적 접두어 먼저]
+   E26AK→NextGen-A DS / E26→NextGen-P DP / E7·E8→NextGen-P DS
+   CTAIS·CTAIF→SKYPAC DP / CTAJS·CTAJF→NextGen-P DP / NCDDA·INDV→SKYPAC DP / TY→미분류
+   CTAJ+코드2+단계1+순서2 : 4=CPS원액,0·3=CPS IPC,9=DS원액,5~8=DS IPC
+   Y+혈청형2+단계2+연도2+순서 : 04=다당류(PS)원액, 09=접합체(DS)원액 (그 외 단계=확인필요) */
+const PREFIX_RULES=[
+  {re:/^E26AK/i, group:'NextGen-A DS', 세부:'NGA · DS ER'},
+  {re:/^E26/i,   group:'NextGen-P DP', 세부:'PCV27 / DP ER'},
+  {re:/^E[78]/i, group:'NextGen-P DS', 세부:'DS ER'},
+  {re:/^CTAIS/i, group:'SKYPAC DP',    세부:'Lhouse / PCV21 · DP Release'},
+  {re:/^CTAIF/i, group:'SKYPAC DP',    세부:'Lhouse / PCV21 · Final bulk'},
+  {re:/^CTAJS/i, group:'NextGen-P DP', 세부:'Lhouse / PCV27 · DP Release'},
+  {re:/^CTAJF/i, group:'NextGen-P DP', 세부:'Lhouse / PCV27 · Final bulk'},
+  {re:/^NCDDA/i, group:'SKYPAC DP',    세부:'VdR / PCV21 · DP Release'},
+  {re:/^INDV/i,  group:'SKYPAC DP',    세부:'VdR / PCV21 · Final bulk'},
+  // PDAIS 계열 = DP (사용자 확정). 프로젝트는 검체명 근거: PDAISA=21가(SKYPAC), PDAISB=GBP412(NextGen-P)
+  {re:/^PDAISA/i, group:'SKYPAC DP',    세부:'PDA / PCV21 · DP'},
+  {re:/^PDAISB/i, group:'NextGen-P DP', 세부:'PDA / GBP412 · DP'},
+  {re:/^PDAIS/i,  group:'미분류',        세부:'PDA · DP (프로젝트 확인 필요)'},
+  // Small scale = 비정규 의뢰 (사용자 확정)
+  {re:/^S26/i,    group:'비정규(Small scale)', 세부:'Small scale run'},
+  {re:/^GBP/i,    group:'비정규(Small scale)', 세부:'Small scale run'},
+  {re:/^SY/i,     group:'SKYPAC DP',    세부:'DP'},   // SY = DP (사용자 확정)
+  {re:/^H/i,     group:'CRM',          세부:'CRM197 단백질 원액'},
+];
+/* 혈청형 코드표 (사용자 제공 — 임의 매핑 아님)
+   NextGen(CTAJ) 코드 → base 혈청형 + 접합체 종류 */
+const NGP_SERO={'16':'16F','17':'16F','24':'24F','25':'24F','31':'23A','34':'23A',
+  '32':'23B','35':'35B','36':'35B','51':'15A','52':'15A'};
+const NGP_CONJ={'16':'CRM','17':'TTxd','24':'CRM','25':'TTxd','31':'CRM','34':'TTxd',
+  '32':'CRM','35':'CRM','36':'TTxd','51':'CRM','52':'TTxd'};
+/* SKYPAC(Y) 앞 2자리 혈청형 코드 → 혈청형
+   ※ 19A·19F만 단계별로 코드가 다름: DS=98/99, CPS=96/97 (그 외는 단계 무관 동일 코드)
+   ※ 6A=61, 6B=62 → '06' 코드는 사용하지 않음(확인 완료) */
+const SKY_SERO={'01':'1','03':'3','04':'4','05':'5','61':'6A','62':'6B','07':'7F','08':'8',
+  '91':'9N','92':'9V','10':'10A','11':'11A','12':'12F','14':'14','15':'15B','18':'18C',
+  '22':'22F','23':'23F','33':'33F',
+  '98':'19A','96':'19A',      // 19A — DS=98 / CPS=96
+  '99':'19F','97':'19F'};     // 19F — DS=99 / CPS=97
+function classifyBatch(batchRaw){
+  const b=(batchRaw||'').trim();
+  if(!b) return {group:'미분류', 세부:'(제조번호 없음)', 혈청형:''};
+  for(const r of PREFIX_RULES){ if(r.re.test(b)) return {group:r.group, 세부:r.세부, 혈청형:''}; }
+  const m=b.match(/^CTAJ(\d{2})(\d)(\d{2})/i);
+  if(m){
+    const code=m[1], stage=m[2];
+    const sero=NGP_SERO[code]||'', conj=NGP_CONJ[code]||'';
+    const label = sero ? `${sero}-${conj}` : `코드${code}(확인필요)`;
+    let group, 세부;
+    if(stage==='4'){group='NextGen-P CPS';세부='CPS 원액';}
+    else if(stage==='0'||stage==='3'){group='NextGen-P CPS';세부='CPS IPC';}
+    else if(stage==='9'){group='NextGen-P DS';세부='DS 원액';}
+    else if(['5','6','7','8'].includes(stage)){group='NextGen-P DS';세부='DS IPC';}
+    else {group='NextGen-P';세부=`단계${stage}(확인필요)`;}
+    return {group, 세부:`${label} / ${세부}`, 혈청형:sero, 접합:conj};
+  }
+  const ty=b.match(/^TY(\d{2})(\d{2})/i);          // TY = T(test) + Y(SKYPAC) → 시험생산 CPS
+  if(ty){
+    const sero=SKY_SERO[ty[1]]||'', st=ty[2];
+    let 세부;
+    if(st==='04') 세부='CPS(다당류) 원액';
+    else if(st==='02'||st==='03') 세부='CPS IPC';
+    else 세부=`단계 ${st}(확인필요)`;
+    return {group:'SKYPAC 다당류', 세부:`시험(T) · ${sero||('코드'+ty[1])} / ${세부}`, 혈청형:sero};
+  }
+  const y=b.match(/^Y(\d{2})(\d{2})(\d{2})(\d+)/i);
+  if(y){
+    const serCode=y[1], stagef=y[2];
+    const sero=SKY_SERO[serCode]||'';
+    let group, 세부;
+    if(stagef==='04'){group='SKYPAC 다당류';세부='CPS(다당류) 원액';}
+    else if(stagef==='02'||stagef==='03'){group='SKYPAC 다당류';세부='CPS IPC';}
+    else if(stagef==='09'){group='SKYPAC DS';세부='접합체(DS) 원액';}
+    else if(['05','06','08'].includes(stagef)){group='SKYPAC DS';세부='DS IPC';}
+    else {group='SKYPAC 기타';세부=`단계 ${stagef} (확인필요)`;}
+    return {group, 세부:`${sero||('코드'+serCode)} / ${세부}`, 혈청형:sero};
+  }
+  return {group:'미분류', 세부:'미분류(확인 필요)', 혈청형:''};
+}
+
+/* 검체명에서 혈청형 추출 (제조번호로 못 뽑을 때 보완).
+   오탐 방지: 글자 포함 혈청형만 매칭(단일 숫자 1·3·4·5·8·14 등은 제조번호 역산에 맡김). */
+const SERO_LIST=['19A(I)','19F(I)','19A','19F','10A','11A','12F','15A','15B','16F','17F',
+  '20B','22F','23A','23B','23F','24F','33F','35B','35F','6A','6B','7C','7F','9N','9V'];
+function extractSeroFromName(name){
+  const s=String(name||'');
+  for(const t of SERO_LIST){
+    const esc=t.replace(/[()]/g,'\\$&');
+    if(new RegExp(`(^|[^0-9A-Za-z])${esc}([^0-9A-Za-z]|$)`).test(s)) return t;
+  }
+  return '';
+}
+
+/* ===================== 7) 레코드 생성 ===================== */
+/* [시험항목 표준화 — SOP 번호 기준]
+   사용자 제공 표준 시험 마스터 기반. 같은 SOP = 같은 표준명(1:1).
+   관리표에 SOP 컬럼이 없으므로 '이름 변형 → SOP → 표준명' 경로로 정규화한다.
+   확신 가능한 것만 병합하고, 방법명이 없어 SOP를 특정할 수 없는 이름(예: 단백질함량 단독)은
+   원문을 유지하고 '확인 필요'로 남긴다(임의 매핑 금지). */
+/* SOP 기준 표준 시험명 */
+const STD_BY_SOP={
+  'SOP-000456':'pH',
+  'SOP-000458':'단백질함량 (BCA)',
+  'SOP-000470':'성상 (Appearance)',
+  'SOP-000488':'주사제의 실용량 (Expellable Volume)',
+  'SOP-000493':'함습도 (Moisture)',
+  'SOP-000507':'단백질함량 (Lowry)',
+  'SOP-000508':'순도 (Purity)',
+  'SOP-000510':'다당류/단백질 함량비',
+  'SOP-000511':'유리단백질함량 (Free CRM197)',
+  'SOP-000512':'분자량분포 (Molecular Size Distribution)',
+  'SOP-000514':'폴리소르베이트 80 함량',
+  'SOP-000565':'잔류 세타블론 (CTAB)',
+  'SOP-000610':'알루미늄 흡착률 (Protein bound)',
+  'SOP-000704':'총질소함량',
+  'SOP-000784':'메틸펜토스함량',
+  'SOP-000785':'우론산함량 (Uronic acid)',
+  'SOP-000786':'인함량 (Phosphorus)',
+  'SOP-000983':'핵산함량 (Spectrophotometer)',
+  'SOP-000984':'분자량 (Molecular Size)',
+  'SOP-000985':'다당류함량 (Polysaccharide Content)',
+  'SOP-000986':'유리다당류함량 (Free Polysaccharide)',
+  'SOP-000987':'항원함량 (Polysaccharide Content, Nephelometry)',
+  'SOP-000988':'총단백질함량 (Total Protein)',
+  'SOP-000989':'잔류 디메틸설폰산 (DMSO)',
+  'SOP-000991':'알루미늄 함량',
+  'SOP-001011':'유리단백질함량 (Free TTxd)',
+  'SOP-001023':'잔류 데옥시콜레이트',
+  'SOP-001963':'O-acetyl 함량 (Hestrin)',
+  'SOP-002435':'기밀도 (CCIT)',
+  'SOP-002659':'가용성 단백질함량 (Soluble protein)',
+  'SOP-002661':'잔류 시안 한도',
+  'SOP-002722':'건조중량 (Dry weight)',
+  'SOP-002749':'헥소사민함량',
+  'SOP-002810':'불용성이물 (Visible Particles)',
+  'SOP-002682':'핵산함량 (Picogreen)',
+  'SOP-001025':'확인 (Slot blot)',
+  'SOP-000979':'확인 (SDS-PAGE)',
+  'SOP-000981':'확인 (Latex)',
+  'SOP-000993':'단백질함량 (Modified Lowry)',
+  'SOP-002227':'단백질함량 (Micro Bradford)',
+  'SOP-000701':'임상제품 Blind 육안검사 (Likelihood)',
+  'SOP-000975':'알데히드 함량 (AHMT)',
+  'SOP-000976':'알데히드 함량 (microBCA)',
+  'SOP-000977':'알데히드 함량 (Park-Johnson)',
+};
+/* 방법이 특정되지 않아 SOP를 확정할 수 없는 항목 = 원문 유지 + 확인필요 버킷 */
+const AMBIG={
+  PROT:'단백질함량 [방법 미기재 — 확인 필요]',
+  ID:'확인 [방법 미기재 — 확인 필요]',
+  ALD:'알데히드 함량 [방법 미기재 — 확인 필요]',
+  FREEPROT:'유리단백질함량 [CRM/TTxd 미기재 — 확인 필요]',
+};
+function nk(s){
+  return String(s||'')
+    .replace(/\s*\/\s*(release|pdaisa\d+).*$/i,'')     // '/ Release', '/ PDAISA2516' 꼬리표 제거
+    .toLowerCase()
+    .replace(/[\s()（）\[\]·,.\-_%:µ\/]/g,'')            // 공백·괄호·기호·단위기호 제거
+    .replace(/perserotype/g,'');
+}
+/* SKYPAC DS 접합체 종류 = 혈청형으로 결정 (혈청형 마스터 CRM/TTxd 열 근거)
+   TTxd: 1, 5, 15B, 22F / 그 외 전부 CRM197 (12F=CRM 사용자 확인) */
+const SKY_TTXD=['1','5','15B','22F'];
+
+/* 알데히드 함량 시험범위(혈청형별) — 사용자 제공 확정 사실 */
+const ALD_AHMT=['5','18C','19A','19F','22F','23A','24F','33F'];              // AHMT법 SOP-000975
+const ALD_MBCA=['3','4','7F','11A','15A','16F'];                             // microBCA법 SOP-000976
+const ALD_PJ  =['1','6A','6B','8','9V','9N','10A','12F','14','15B','23F','23B','35B'];  // Park-Johnson법 SOP-000977
+
+/* name → SOP. group = 'G=구분|D=세부|SERO=혈청형|CONJ=CRM|TTxd' 형식 */
+function itemSOP(name, group){
+  const k=nk(name);
+  const G=String(group||'');
+  const pick=(t)=>{const m=G.match(new RegExp(t+'=([^|]*)'));return m?m[1].trim():'';};
+  const grp=pick('G')||G, det=pick('D'), sero=pick('SERO'), conj=pick('CONJ'), typ=pick('TYPE'), nm=pick('NM');
+  const gd=grp+' '+det;
+  const isDP  = /DP|FB|완제|최종원액|충전/i.test(gd) || /최종원액|완제의약품|Final bulk/i.test(nm);
+  const isCRM = /CRM/i.test(grp);                            // 구분이 'CRM'(CRM197 원액/중간체)일 때만
+  const isCPS = /CPS|다당류/i.test(gd);
+  const isDS  = /DS|접합체/i.test(gd);
+  // 단계: ①유형(IPC/IPM) ②검체명 공정 키워드 ③배치 세부 — 같은 배치가 IPC/원액에 공용되므로 검체 우선
+  const isIPC = /^(IPC|IPM)$/i.test(typ)
+    || /한외여과|심층여과|활성탄|세타블론|CTV|본배양|하베스트|회수액|공정액|동결건조|Permeate|용출액|중간|충전|처리액/i.test(nm)
+    || (!/원액/.test(nm) && /IPC|IPM|중간|여과|회수|처리|본배양|동결|산화/i.test(gd));
+
+  // --- 고유 식별 가능한 것 (오탈자·한영병기 흡수) ---
+  if(/확인.*(polysaccharide|carrierprotein)|identitypolysaccharide/.test(k)) return 'SOP-001025';  // 확인 Identity (Polysaccharide and Carrier Protein)
+  if(/sdspage/.test(k)) return 'SOP-000979';
+  if(/라텍스|latex/.test(k)) return 'SOP-000981';
+  if(/성상|appearance|appeaeance/.test(k)) return 'SOP-000470';
+  if(/^ph|ph측정|측정ph/.test(k) && !/phosphorus/.test(k)) return 'SOP-000456';
+  if(/불용성이물|visibleparticles/.test(k)) return 'SOP-002810';
+  if(/실용량|expellablevolume/.test(k)) return 'SOP-000488';
+  if(/기밀도|ccit|containerclosureintegrity/.test(k)) return 'SOP-002435';
+  if(/흡착률|proteinbound/.test(k)) return 'SOP-000610';
+  if(/폴리소르베이트|polysorbate|ps80/.test(k)) return 'SOP-000514';
+  if(/알루미늄함량|aluminum(content)?$|aluminium|인산알루미늄/.test(k)) return 'SOP-000991';
+  if(/총단백질|totalprotein/.test(k)) return 'SOP-000988';
+  if(/항원함량/.test(k)) return 'SOP-000987';
+  if(/nephelo/.test(k)) return 'SOP-000987';                       // Polysaccharide content (Nephelometer)
+  if(/분자량분포|molecularsizedistribution/.test(k)) return 'SOP-000512';
+  if(/분자량|molecularsize/.test(k)) return 'SOP-000984';
+  if(/다당류단백질함량비|polysaccharidetoproteinratio/.test(k)) return 'SOP-000510';
+  if(/freecrm197|유리단백질함량freecrm/.test(k)) return 'SOP-000511';
+  if(/freettxd/.test(k)) return 'SOP-001011';
+  if(/유리다당류|freepolysaccharide/.test(k)) return 'SOP-000986';
+  if(/가용성단백질|solubleprotein/.test(k)) return 'SOP-002659';
+  if(/oacetyl|oaccetyl/.test(k)) return 'SOP-001963';
+  if(/순도|purity/.test(k)) return 'SOP-000508';
+  if(/총질소|totalnitrogen/.test(k)) return 'SOP-000704';
+  if(/인함량|phosphorus/.test(k)) return 'SOP-000786';
+  if(/헥소사민|hexosamine/.test(k)) return 'SOP-002749';
+  if(/메틸펜토스|methylpentose/.test(k)) return 'SOP-000784';
+  if(/우론산|uronicacid/.test(k)) return 'SOP-000785';
+  if(/잔류시안|residualcyanide/.test(k)) return 'SOP-002661';
+  if(/디메틸설폰산|dmso/.test(k)) return 'SOP-000989';
+  if(/데옥시콜레이트|deoxycholate/.test(k)) return 'SOP-001023';
+  if(/세타블론|ctab/.test(k)) return 'SOP-000565';
+  if(/함습도|moisture/.test(k)) return 'SOP-000493';
+  if(/건조중량|dryweight/.test(k)) return 'SOP-002722';
+  if(/picogreen/.test(k)) return 'SOP-002682';
+  if(/microbradford/.test(k)) return 'SOP-002227';
+  if(/modifiedlowry/.test(k)) return 'SOP-000993';
+  if(/bca법|bca$/.test(k)) return 'SOP-000458';
+  if(/lowry/.test(k)) return 'SOP-000507';
+
+  // --- 구분(제품 단계)으로만 확정 가능한 것 [마스터 근거] ---
+  // 다당류함량/Polysaccharide content: DP·FB → 항원함량(000987), 그 외 → 다당류함량(000985)
+  if(/다당류함량|당류함량|polysaccharidecontent|polysaccaridecontent|polysacchairdecontent|^polysaccharide$/.test(k))
+    return isDP ? 'SOP-000987' : 'SOP-000985';
+  // 핵산함량/Nucleic acid: CRM 계열 → Picogreen(002682), 그 외 → Spectrophotometer(000983)
+  if(/핵산함량|nucleicacid/.test(k)) return isCRM ? 'SOP-002682' : 'SOP-000983';
+
+  // --- 방법 미기재 → 단계(구분) 맥락으로 확정 [마스터 근거 · 사용자 승인] ---
+  // 단백질함량: CPS중간체=M.Lowry(000993) / CPS원액=MicroBradford(002227) / DS원액=Lowry(000507)
+  //             CRM중간체=BCA(000458) / CRM원액=Lowry(000507) / 완제·최종원액=총단백질(000988)
+  if(/^단백질함량$|proteincontent$|^protein$/.test(k)){
+    if(isDP)  return 'SOP-000988';
+    if(isCRM) return isIPC ? 'SOP-000458' : 'SOP-000507';
+    if(isCPS) return isIPC ? 'SOP-000993' : 'SOP-002227';
+    if(isDS)  return 'SOP-000507';
+    return {amb:'PROT'};                                    // 구분 미상 → 확인 필요
+  }
+  // 임상제품 Blind 육안검사(Likelihood) — 확인시험(Identity)과 별개 시험
+  if(/likelihoodtest|blind육안|임상제품blind|육안검사/.test(k)) return 'SOP-000701';
+  // 확인(Identity): CRM중간체=SDS-PAGE(000979) / CRM원액=Latex(000981) / CPS원액·DS원액·완제=Slot blot(001025)
+  if(/^확인$|^identity$|^idtest$/.test(k)){
+    if(isCRM) return isIPC ? 'SOP-000979' : 'SOP-000981';
+    if(isCPS||isDS||isDP) return 'SOP-001025';
+    return {amb:'ID'};                                      // 구분 미상 → 확인 필요
+  }
+  // 알데히드 함량: 혈청형별 시험법 상이 [사용자 제공 시험범위]
+  //  AHMT(000975) / microBCA(000976) / Park-Johnson(000977)
+  if(/알데히드|aldehyde/.test(k)){
+    if(!sero) return {amb:'ALD'};                            // 혈청형 미상 → 확인 필요
+    if(ALD_MBCA.includes(sero)) return 'SOP-000976';
+    if(ALD_AHMT.includes(sero)) return 'SOP-000975';
+    if(ALD_PJ.includes(sero))   return 'SOP-000977';
+    return {amb:'ALD'};                                      // 시험범위 밖 혈청형 → 확인 필요
+  }
+  // 유리단백질함량(단독 표기): 검체명의 접합체 종류로 확정 — CRM197 / TTxd
+  if(/^유리단백질함량$/.test(k)){
+    if(conj==='TTxd') return 'SOP-001011';
+    if(conj==='CRM')  return 'SOP-000511';
+    return {amb:'FREEPROT'};                                 // 접합체 미상 → 확인 필요
+  }
+  return null;   // 미매핑
+}
+function canonicalItem(name, group){
+  const r=itemSOP(name, group);
+  if(!r) return String(name||'').trim();                       // 미매핑 → 원문
+  if(typeof r==='object') return AMBIG[r.amb];                 // 확정 불가 → 확인필요 버킷
+  return STD_BY_SOP[r] || String(name||'').trim();
+}
+
+/* 표준 매핑 여부: SOP로 확정되면 true, 확인필요/미매핑이면 false */
+function isStdItem(name, group){ const r=itemSOP(name, group); return !!(r && typeof r!=='object'); }
+let RECORDS=[];
+function buildRecords(rows){
+  const H=rows[0];
+  const ci={유형:colIndex(H,'유형'),검체:colIndex(H,'검체명'),제조:colIndex(H,'제조번호'),
+    접수:colIndex(H,'접수번호'),접수일:colIndex(H,'접수일'),항목:colIndex(H,'시험항목'),
+    시험자:colIndex(H,'시험자'),첨부:colIndex(H,'보고서첨부'),시작:colIndex(H,'시험시작일'),
+    일지검토:colIndex(H,'일지검토수행일'),완료요구:colIndex(H,'시험완료요구일'),
+    검토요청:colIndex(H,'일지검토요청일'),검토자:colIndex(H,'일지검토자'),
+    audit요청:colIndex(H,'Audit요청일'),audit:colIndex(H,'Audit')};
+  const out=[];
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r];
+    if(!row||row.every(x=>(x||'').trim()==='')) continue;
+    const 첨부=row[ci.첨부]||'', 시작=row[ci.시작]||'';
+    const cat=categorize(첨부,시작);
+    const 접수일=pickDate(row[ci.접수일]);
+    const days = 접수일 ? daysBetween(TODAY,접수일) : null;         // 접수 후 경과일(오늘까지)
+    const 일지검토일=pickDate(row[ci.일지검토]);
+    const lead0 = (접수일&&일지검토일) ? daysBetween(일지검토일,접수일) : null;
+    const lead = (lead0!=null && (lead0>365||lead0<-365)) ? null : lead0;   // 이상치 제외
+    const tier = (cat==='완료') ? '완료' : (cat==='해당없음' ? '해당없음' : agingTier(days));
+    // 완료일 = '완료' 건에서 일지검토수행일 우선, 없으면 보고서첨부가 날짜인 경우 그 날짜
+    const 완료일 = (cat==='완료') ? (일지검토일 || pickDate(첨부)) : null;
+    // 완료요구일 = CSV값 우선, 없으면 접수일+35일(5주). D-day = 완료요구일 − 오늘(미완료 건만)
+    const 완료요구일 = (ci.완료요구>=0 && pickDate(row[ci.완료요구])) || (접수일 ? addDaysUTC(접수일,35) : null);
+    const dday = (완료요구일 && cat!=='완료' && cat!=='해당없음') ? daysBetween(완료요구일,TODAY) : null;
+    // ===== 단계별 리드타임 분해 (병목 원인 규명) =====
+    const d시작=pickDate(시작), d검토요청=pickDate(row[ci.검토요청]||''), dAudReq=pickDate(row[ci.audit요청]||''), dAud=pickDate(row[ci.audit]||'');
+    const d첨부=pickDate(첨부);
+    const 검토자=(ci.검토자>=0?(row[ci.검토자]||''):'').trim();
+    const gap=(a,b)=>{ if(!a||!b) return null; const v=daysBetween(a,b);
+      return (v>365||v<-365) ? null : v; };                    // 1년 초과 = 데이터 오류로 간주(제외)
+    const s1 = gap(d시작, 접수일);                              // ① 착수 대기
+    const s2 = gap(d검토요청||dAudReq||일지검토일, d시작);        // ② 시험 수행
+    const s3 = gap(일지검토일, d검토요청||dAudReq||dAud);         // ③ 검토 대기
+    const s4 = gap(d첨부, 일지검토일);                           // ④ 보고·불출
+    const stages={'① 착수대기':s1,'② 시험수행':s2,'③ 검토대기':s3,'④ 보고·불출':s4};
+    let 주원인='', 주원인일=null;                                // 가장 오래 걸린 구간
+    Object.entries(stages).forEach(([k,v])=>{ if(v!=null&&v>=0&&(주원인일==null||v>주원인일)){주원인=k;주원인일=v;} });
+    const 제조=(row[ci.제조]||'').split('\n')[0].trim();
+    const cls=classifyBatch(제조);
+    // 혈청형: ① 제조번호 코드 역산(공식표) → ② 검체명 추출 → ③ 공란
+    const 혈청형 = cls.혈청형 || extractSeroFromName(row[ci.검체]||'');
+    const 항목원문=(row[ci.항목]||'').split('\n')[0].trim();
+    const 검체명전체=(row[ci.검체]||'');
+    // 접합체 종류: ①검체명(TTxd/CRM197 명시) ②CTAJ 코드 ③SKYPAC DS는 혈청형으로 판정
+    let conj = /TTxd/i.test(검체명전체) ? 'TTxd' : (/CRM197|CRM 197/i.test(검체명전체) ? 'CRM' : (cls.접합||''));
+    if(!conj && /SKYPAC DS/.test(cls.group) && 혈청형) conj = SKY_TTXD.includes(혈청형) ? 'TTxd' : 'CRM';
+    const ctx = `G=${cls.group}|D=${cls.세부||''}|SERO=${혈청형||''}|CONJ=${conj}|TYPE=${(row[ci.유형]||'').trim()}|NM=${검체명전체.replace(/[|\n]/g,' ')}`;
+    out.push({
+      제품:(row[0]||'').trim(),
+      검체:(row[ci.검체]||'').split('\n')[0].trim(),
+      제조:제조, 유형:(row[ci.유형]||'(미지정)').trim()||'(미지정)',
+      접수:(row[ci.접수]||'').trim(), 접수일:접수일, 일지검토일:일지검토일, 완료일:완료일,
+      완료요구일:완료요구일, dday:dday,
+      항목:항목원문, 항목표준:canonicalItem(항목원문, ctx), ctx:ctx, 시험자:(row[ci.시험자]||'').trim(),
+      첨부:첨부.trim(), cat, days, lead, tier,
+      s1,s2,s3,s4, 검토자, 주원인, 주원인일,
+      구분:cls.group, 구분상세:cls.세부, 혈청형:혈청형,
+    });
+  }
+  return out;
+}
+
+/* 제조번호(배치) 단위 집계 — 주간요약·진행현황·구분별·유형별에 사용
+   완료판정: 모든 시험(해당없음 제외) 완료=완료 / 전부 미착수=미착수 / 그 외=진행 */
+function rollupStatus(rows){
+  const eff=rows.map(r=>r.cat).filter(c=>c!=='해당없음');
+  if(!eff.length) return '해당없음';
+  if(eff.every(c=>c==='완료')) return '완료';          // 이상값이 있으면 완료 아님
+  if(eff.every(c=>c==='미착수')) return '미착수';
+  return '진행';                                        // 이상값 포함 시 진행으로 처리
+}
+function buildBatches(recs){
+  const map={};
+  recs.forEach(r=>{ const k=r.제조||('(제조번호없음)#'+r.접수+'#'+r.항목);
+    (map[k]=map[k]||[]).push(r); });
+  return Object.entries(map).map(([제조,rows])=>{
+    const cat=rollupStatus(rows);
+    const 접수일들=rows.map(r=>r.접수일).filter(Boolean).sort();
+    const 접수일=접수일들[0]||null;                          // 가장 이른 접수일
+    const days=접수일?daysBetween(TODAY,접수일):null;
+    const 검토일들=rows.map(r=>r.일지검토일).filter(Boolean).sort();
+    const lastReview=검토일들.length?검토일들[검토일들.length-1]:null;   // 마지막 일지검토일
+    const lead=(접수일&&lastReview)?daysBetween(lastReview,접수일):null;
+    const tier=(cat==='완료')?'완료':(cat==='해당없음'?'해당없음':agingTier(days));
+    const 유형s=[...new Set(rows.map(r=>r.유형))];
+    return {제조, 구분:rows[0].구분, 유형s, cat, days, lead, tier, 접수일};
+  });
+}
+
+/* ===================== 8) 유틸 ===================== */
+function esc(s){return (s||'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));}
+function weeksLabel(days){ if(days==null) return '—'; const w=Math.floor(days/7),d=days%7; return (w?`${w}주`:'')+(d?`${d}일`:(w?'':'0일')); }
+function median(arr){ if(!arr.length) return '–'; const s=[...arr].sort((a,b)=>a-b),m=Math.floor(s.length/2);
+  return s.length%2 ? s[m] : Math.round((s[m-1]+s[m])/2*10)/10; }
+function getVar(n){return getComputedStyle(document.documentElement).getPropertyValue(n).trim();}
+/* 시험자 셀 '홍길동/김영미' → ['홍길동','김영미'] 개인 분리 (구분자: / , · ) */
+function splitTesters(s){
+  return String(s||'').split(/[\/,·]/).map(x=>x.trim()).filter(Boolean);
+}
+function fillOptions(id,arr){const s=document.getElementById(id);const cur=s.value;
+  s.innerHTML=s.options[0].outerHTML+arr.map(v=>`<option>${esc(v)}</option>`).join('');s.value=cur;}
+
+/* ===================== 표 컬럼 정렬 (오름/내림차순) ===================== */
+const SORT={};                                   // tableId → {idx, dir}
+function cellSortVal(td){
+  const t=(td?td.textContent:'').trim();
+  const num=parseFloat(t.replace(/[^0-9.\-]/g,''));   // 숫자 추출(12.5d, 80%, 1,234 등)
+  if(t!=='' && (td.classList.contains('num')||/^[-+]?[\d,]+(\.\d+)?\s*[%d]?$/.test(t)) && !isNaN(num)) return num;
+  return t.toLowerCase();
+}
+function applySort(tableId){
+  const st=SORT[tableId]; if(!st) return;
+  const tb=document.querySelector('#'+tableId+' tbody'); if(!tb) return;
+  const all=[...tb.children].filter(r=>!r.querySelector('.empty-msg'));
+  // 부모 행 + 그 뒤 하위(.subrow) 행을 한 그룹으로 묶어 정렬(토글 구조 보존)
+  const groups=[]; let cur=null;
+  all.forEach(r=>{ if(r.classList.contains('subrow')){ if(cur) cur.subs.push(r); }
+    else { cur={parent:r,subs:[]}; groups.push(cur); } });
+  groups.sort((a,b)=>{
+    const av=cellSortVal(a.parent.cells[st.idx]), bv=cellSortVal(b.parent.cells[st.idx]);
+    let c; if(typeof av==='number'&&typeof bv==='number') c=av-bv; else c=String(av).localeCompare(String(bv),'ko');
+    return st.dir==='asc'?c:-c;
+  });
+  groups.forEach(g=>{ tb.appendChild(g.parent); g.subs.forEach(s=>tb.appendChild(s)); });
+}
+function makeSortable(tableId){
+  const ths=document.querySelectorAll('#'+tableId+' thead th');
+  ths.forEach((th,idx)=>{
+    th.classList.add('sortable');
+    th.addEventListener('click',()=>{
+      const st=SORT[tableId];
+      const dir=(st&&st.idx===idx&&st.dir==='desc')?'asc':'desc';   // 같은 열 재클릭 시 방향 토글
+      SORT[tableId]={idx,dir};
+      ths.forEach(h=>{const s=h.querySelector('.sortind'); if(s)s.remove();});
+      const ind=document.createElement('span'); ind.className='sortind'; ind.textContent=dir==='asc'?'▲':'▼';
+      th.appendChild(ind);
+      applySort(tableId);
+    });
+  });
+}
+
+/* ===================== 9) 요약 렌더 (전체 데이터) ===================== */
+function renderSummary(){
+  const BATCHES=buildBatches(RECORDS);                 // 제조번호(배치) 단위 집계
+  const cnt={완료:0,진행:0,미착수:0,해당없음:0,이상값:0};
+  const aging={정상:0,주의:0,경고:0,타겟초과:0,미상:0};
+  const leadsAll=[];
+  BATCHES.forEach(b=>{ cnt[b.cat]++;
+    if(b.cat==='진행'||b.cat==='미착수') aging[b.tier]=(aging[b.tier]||0)+1;
+    if(b.lead!=null&&b.lead>=0) leadsAll.push(b.lead);
+  });
+  const total=cnt.완료+cnt.진행+cnt.미착수+cnt.해당없음;
+  const denom=total-cnt.해당없음, rate=denom>0?Math.round(cnt.완료/denom*1000)/10:0;
+  const over4=aging.경고+aging.타겟초과;
+  const noReason=RECORDS.filter(r=>needReason(r)&&!(DELAY[delayKey(r)]||'').trim()).length;  // 사유는 행 단위 입력
+  const avgLead=leadsAll.length?Math.round(leadsAll.reduce((a,b)=>a+b,0)/leadsAll.length*10)/10:null;
+
+  // 주간 요약존
+  document.getElementById('w-rate').innerHTML=`${rate}<small>%</small>`;
+  document.getElementById('w-open').textContent=cnt.진행+cnt.미착수;
+  document.getElementById('w-over4').textContent=over4;
+  document.getElementById('w-over5').textContent=aging.타겟초과;
+  document.getElementById('w-lead').innerHTML=avgLead!=null?`${avgLead}<small>d</small>`:'–';
+  document.getElementById('w-noreason').textContent=noReason;
+  const badCnt=RECORDS.filter(r=>r.cat==='이상값').length;   // 보고서첨부 이상값(행 단위)
+  const badEl=document.getElementById('w-bad'); if(badEl) badEl.textContent=badCnt;
+  document.getElementById('w-total-note') && (document.getElementById('w-total-note').textContent=`제조번호 ${total}건 기준`);
+
+  // 도넛
+  const seg=[['완료',cnt.완료,getVar('--done')],['진행',cnt.진행,getVar('--wip')],
+             ['미착수',cnt.미착수,getVar('--todo')],['해당없음',cnt.해당없음,getVar('--na')]];
+  let acc=0,stops=[]; seg.forEach(([,v,c])=>{const a=total?v/total*360:0;stops.push(`${c} ${acc}deg ${acc+a}deg`);acc+=a;});
+  document.getElementById('donut').style.background=`conic-gradient(${stops.join(',')})`;
+  document.getElementById('donut-rate').textContent=rate+'%';
+  document.getElementById('donut-leg').innerHTML=seg.map(([k,v,c])=>
+    `<div><span><span class="dot" style="background:${c}"></span>${k}</span><b style="font-family:var(--mono)">${v}</b></div>`).join('');
+
+  // 경과 경고
+  const openTot=cnt.진행+cnt.미착수||1;
+  [['ok','정상'],['caution','주의'],['warn','경고'],['over','타겟초과']].forEach(([id,key])=>{
+    document.getElementById('a-'+id).textContent=aging[key];
+    document.getElementById('ab-'+id).style.width=(aging[key]/openTot*100)+'%';
+  });
+  document.getElementById('missmsg').textContent = over4>0 ? `4주 초과 미완료 ${over4}건 · 지연사유 미작성 ${noReason}건` : '';
+
+  // 구분별 (배치=제조번호 단위, 구분은 제조번호와 1:1)
+  const byG={};
+  BATCHES.forEach(b=>{const g=b.구분||'미분류';(byG[g]=byG[g]||{총:0,완료:0,진행:0,미착수:0,해당없음:0,over4:0});
+    byG[g].총++;byG[g][b.cat]++;if((b.cat==='진행'||b.cat==='미착수')&&b.days>28)byG[g].over4++;});
+  const gOrder=['SKYPAC DP','SKYPAC DS','SKYPAC 다당류','SKYPAC 기타','NextGen-P DP','NextGen-P DS','NextGen-P CPS','NextGen-P','NextGen-A DS','CRM','비정규(Small scale)','미분류'];
+  const gKeys=Object.keys(byG).sort((a,b)=>{const ia=gOrder.indexOf(a),ib=gOrder.indexOf(b);return (ia<0?99:ia)-(ib<0?99:ib);});
+  document.querySelector('#tbl-group tbody').innerHTML=gKeys.map(g=>rowGT(g,byG[g],g==='미분류',false)).join('');
+  applySort('tbl-group');
+
+  // 유형별 (배치 단위 · 한 배치가 여러 유형이면 각 유형에 카운트→참여 개념)
+  const byT={};
+  BATCHES.forEach(b=>{ b.유형s.forEach(t=>{ (byT[t]=byT[t]||{총:0,완료:0,진행:0,미착수:0,해당없음:0,over4:0});
+    byT[t].총++;byT[t][b.cat]++;if((b.cat==='진행'||b.cat==='미착수')&&b.days>28)byT[t].over4++; }); });
+  document.querySelector('#tbl-type tbody').innerHTML=Object.entries(byT).sort((a,b)=>b[1].총-a[1].총).map(([t,o])=>rowGT(t,o,false,true)).join('');
+  applySort('tbl-type');
+
+  // 필터 옵션
+  fillOptions('f-product',[...new Set(RECORDS.map(r=>r.제품).filter(Boolean))].sort());
+  fillOptions('f-group',gKeys);
+  fillOptions('f-sero',[...new Set(RECORDS.map(r=>r.혈청형).filter(Boolean))].sort());
+  fillOptions('f-type',[...new Set(RECORDS.map(r=>r.유형))].sort());
+  fillOptions('f-item',[...new Set(RECORDS.map(r=>r.항목표준).filter(Boolean))].sort());
+  fillOptions('ft-item',[...new Set(RECORDS.map(r=>r.항목표준).filter(Boolean))].sort());
+  const testerSet=new Set(); RECORDS.forEach(r=>splitTesters(r.시험자).forEach(t=>testerSet.add(t)));
+  fillOptions('f-tester',[...testerSet].sort());
+  renderIntake();
+  renderFlow();
+  renderItemCounts();
+  renderTesterCounts();
+  renderTesterWeek();
+  renderWIP();
+  renderRootCause();
+  renderTierItems();
+}
+
+/* ===================== 경과 구간별 시험항목 분포 ===================== */
+const TIERS=[
+  {key:'정상',   cls:'t1', sub:'≤ 2주(14일)'},
+  {key:'주의',   cls:'t2', sub:'2주 초과(15~28일)'},
+  {key:'경고',   cls:'t3', sub:'4주 초과(29~35일)'},
+  {key:'타겟초과',cls:'t4', sub:'5주 초과(> 35일)'},
+];
+function renderTierItems(){
+  const open=RECORDS.filter(r=>r.cat==='진행'||r.cat==='미착수');   // 미완료만
+  document.getElementById('tier-grid').innerHTML = TIERS.map(t=>{
+    const rs=open.filter(r=>r.tier===t.key);
+    const by={};
+    rs.forEach(r=>{const k=r.항목표준||'(미기재)'; by[k]=(by[k]||0)+1;});
+    const items=Object.entries(by).sort((a,b)=>b[1]-a[1]);
+    const list = items.length
+      ? `<ul>${items.map(([n,c])=>`<li data-tier="${t.key}" data-item="${esc(n)}"><span>${esc(n)}</span><b>${c}</b></li>`).join('')}</ul>`
+      : '<div class="none">해당 없음</div>';
+    return `<div class="tiercard ${t.cls}">
+      <h4><span>${t.key}</span><span class="cnt">${rs.length}</span></h4>
+      <div class="sub">${t.sub} · 항목 ${items.length}종</div>
+      ${list}</div>`;
+  }).join('');
+  // 항목 클릭 → 리스트를 해당 구간+항목으로 필터
+  document.querySelectorAll('#tier-grid li').forEach(li=>{
+    li.addEventListener('click',()=>{
+      document.getElementById('f-item').value = li.dataset.item;
+      const w=document.getElementById('f-tier'); if(w) w.value = li.dataset.tier;
+      renderList();
+      document.querySelector('.filterbox').scrollIntoView({behavior:'smooth',block:'center'});
+    });
+  });
+}
+
+/* ===================== 지연 원인 분석 (누가 / 어떤 항목 / 왜) ===================== */
+const STAGES=['① 착수대기','② 시험수행','③ 검토대기','④ 보고·불출'];
+const SKEY={'① 착수대기':'s1','② 시험수행':'s2','③ 검토대기':'s3','④ 보고·불출':'s4'};
+const BCLS={'① 착수대기':'b1','② 시험수행':'b2','③ 검토대기':'b3','④ 보고·불출':'b4'};   // 구간별 색
+function bneck(name){ return name ? `<span class="bneck ${BCLS[name]||''}">${name}</span>`
+                                  : '<span class="bneck ok">–</span>'; }
+/* 셀 강조도 병목 구간 색에 맞춤 */
+const HOT={'s1':'hot1','s2':'hot2','s3':'hot3','s4':'hot4'};
+function avg(a){ return a.length? Math.round(a.reduce((x,y)=>x+y,0)/a.length*10)/10 : null; }
+function collectStages(rows){                       // 구간별 유효값 수집
+  const o={s1:[],s2:[],s3:[],s4:[]};
+  rows.forEach(r=>STAGES.forEach(k=>{const v=r[SKEY[k]]; if(v!=null&&v>=0)o[SKEY[k]].push(v);}));
+  return o;
+}
+function bottleneckOf(m){                            // 평균이 가장 큰 구간
+  let b='', bv=-1;
+  STAGES.forEach(k=>{const v=m[SKEY[k]]; if(v!=null&&v>bv){bv=v;b=k;}});
+  return {name:b, val:bv<0?null:bv};
+}
+function renderRootCause(){
+  const all=RECORDS;
+  const S=collectStages(all);
+  const M={s1:avg(S.s1),s2:avg(S.s2),s3:avg(S.s3),s4:avg(S.s4)};
+  const bn=bottleneckOf(M);
+  const tot=STAGES.reduce((a,k)=>a+(M[SKEY[k]]||0),0);
+
+  // 단계별 막대 (폭 = 평균 소요일 비중)
+  document.getElementById('stage-bar').innerHTML = tot ? STAGES.map((k,i)=>{
+    const v=M[SKEY[k]]||0, w=Math.max(v/tot*100,3);
+    return `<div class="st${i+1}" style="flex:0 0 ${w}%"><span class="lbl">${k}</span>${v?v+'d':''}</div>`;
+  }).join('') : '<div style="color:var(--muted);font-size:13px">구간 계산 가능한 데이터 없음</div>';
+
+  // 자동 인사이트
+  const cnt=(k)=>S[SKEY[k]].length;
+  const rev=reviewerStats();
+  const worstRev=rev[0];
+  const items=itemStages();
+  const worstItem=items.filter(x=>x.n>=3).sort((a,b)=>(b.tot||0)-(a.tot||0))[0];
+  let msg=`<b>병목 구간: ${bneck(bn.name)}</b> (평균 ${bn.val??'–'}일 · 전체 평균 소요 ${Math.round(tot)}일 중 <b>${tot?Math.round((bn.val||0)/tot*100):0}%</b>)`;
+  if(bn.name==='③ 검토대기') msg+=` → <b>검토가 최대 병목</b>입니다. 시험자를 압박해도 개선되지 않습니다. 검토 큐 분산·검토 목표일(예: 요청 후 3일) 설정이 직접적인 해법입니다.`;
+  else if(bn.name==='① 착수대기') msg+=` → <b>시험이 시작조차 안 되고 대기</b>합니다. 인력·장비 캐파 또는 우선순위 배분 문제입니다. WIP 상한·착수 목표일 관리가 필요합니다.`;
+  else if(bn.name==='② 시험수행') msg+=` → 시험 자체 소요가 큽니다. 재시험·OOS·장비 대기 여부를 항목별로 확인하세요.`;
+  else if(bn.name==='④ 보고·불출') msg+=` → 시험은 끝났는데 <b>보고서·불출에서 지연</b>됩니다. 승인 흐름 개선이 핵심입니다.`;
+  if(worstItem) msg+=`<br>· 가장 오래 걸리는 항목: <b>${esc(worstItem.name)}</b> (총 ${worstItem.tot}일, 병목 ${bneck(worstItem.bn)})`;
+  if(worstRev && worstRev.avg!=null) msg+=`<br>· 검토대기 최장 검토자: <b>${esc(worstRev.name)}</b> (평균 ${worstRev.avg}일 · 7일 초과 ${worstRev.over}건)`;
+  msg+=`<br>· 구간 산출 가능 건: ①${cnt('① 착수대기')} ②${cnt('② 시험수행')} ③${cnt('③ 검토대기')} ④${cnt('④ 보고·불출')} — <span style="color:var(--muted)">날짜 미입력 건은 분석에서 제외됨</span>`;
+  document.getElementById('root-insight').innerHTML=msg;
+
+  // 항목별
+  const rowsHtml=items.filter(x=>x.n>=2).sort((a,b)=>(b.tot||0)-(a.tot||0)).map(x=>{
+    const c=(k)=>{const v=x.m[SKEY[k]]; return `<td class="num ${x.bn===k?HOT[SKEY[k]]:''}">${v??'–'}</td>`;};
+    return `<tr><td class="wrapcell">${esc(x.name)}</td><td class="num">${x.n}</td>
+      ${STAGES.map(c).join('')}
+      <td class="num"><b>${x.tot||'–'}</b></td><td>${bneck(x.bn)}</td></tr>`;
+  }).join('');
+  document.querySelector('#tbl-root-item tbody').innerHTML = rowsHtml || '<tr><td colspan="8" class="empty-msg">구간 산출 가능한 데이터 부족</td></tr>';
+
+  // 시험자별
+  const tst={};
+  all.forEach(r=>splitTesters(r.시험자).forEach(t=>{(tst[t]=tst[t]||[]).push(r);}));
+  const trows=Object.entries(tst).map(([name,rs])=>{
+    const s=collectStages(rs); const m={s1:avg(s.s1),s2:avg(s.s2),s3:avg(s.s3),s4:avg(s.s4)};
+    const b=bottleneckOf(m); const t=STAGES.reduce((a,k)=>a+(m[SKEY[k]]||0),0);
+    return {name,n:rs.length,m,bn:b.name,tot:Math.round(t*10)/10};
+  }).filter(x=>x.tot>0).sort((a,b)=>b.tot-a.tot);
+  document.querySelector('#tbl-root-tester tbody').innerHTML = trows.map(x=>{
+    const c=(k)=>{const v=x.m[SKEY[k]]; return `<td class="num ${x.bn===k?HOT[SKEY[k]]:''}">${v??'–'}</td>`;};
+    return `<tr><td>${esc(x.name)}</td><td class="num">${x.n}</td>${STAGES.map(c).join('')}
+      <td class="num"><b>${x.tot}</b></td><td>${bneck(x.bn)}</td></tr>`;
+  }).join('') || '<tr><td colspan="8" class="empty-msg">데이터 없음</td></tr>';
+
+  // 검토자별 (③ 검토대기)
+  document.querySelector('#tbl-root-rev tbody').innerHTML = rev.length ? rev.map(x=>{
+    const pct=x.n?Math.round(x.over/x.n*100):0;
+    return `<tr><td>${esc(x.name)}</td><td class="num">${x.n}</td>
+      <td class="num ${x.avg>7?'hot':''}">${x.avg??'–'}</td><td class="num">${x.max??'–'}</td>
+      <td class="num" style="color:${x.over?'var(--over)':'inherit'}">${x.over||''}</td>
+      <td><div class="minibar"><span style="width:${pct}%;background:${pct>30?'var(--over)':'var(--accent)'}"></span></div></td></tr>`;
+  }).join('') : '<tr><td colspan="6" class="empty-msg">검토자 데이터 없음</td></tr>';
+
+  // 지연 건 원인 귀속 — ①완료: 총 소요 35일 초과 / ②미완료: 접수 후 35일 경과(아직 진행 중)
+  const lateDone = all.filter(r=>r.cat==='완료' && r.lead!=null && r.lead>35)
+                      .map(r=>({r, 소요:r.lead, 완료:true}));
+  const lateOpen = all.filter(r=>(r.cat==='진행'||r.cat==='미착수') && r.days!=null && r.days>35)
+                      .map(r=>({r, 소요:r.days, 완료:false}));
+  const late=[...lateOpen,...lateDone].sort((a,b)=>b.소요-a.소요).slice(0,60);
+  document.querySelector('#tbl-root-late tbody').innerHTML = late.length ? late.map(({r,소요,완료})=>{
+    const badge = 완료
+      ? '<span class="badge b-done">완료</span>'
+      : `<span class="badge ${r.cat==='진행'?'b-wip':'b-todo'}">${r.cat}</span>`;
+    const 주 = r.주원인 ? bneck(r.주원인) : (완료?'<span class="bneck ok">–</span>':'<span style="color:var(--muted);font-size:11px">진행중(구간 미확정)</span>');
+    const hotc = r.주원인 ? HOT[SKEY[r.주원인]] : '';
+    return `<tr>
+      <td style="font-family:var(--mono)">${esc(r.접수)}</td>
+      <td class="wrapcell">${esc(r.항목표준)}</td>
+      <td>${esc(r.시험자)}</td><td>${esc(r.검토자)||'–'}</td>
+      <td>${badge}</td>
+      <td class="num"><b>${소요}</b>${완료?'':'<span style="color:var(--muted);font-size:10px">경과</span>'}</td>
+      <td>${주}</td>
+      <td class="num ${hotc}">${r.주원인일!=null?r.주원인일+'d':'–'}</td></tr>`;
+  }).join('') : '<tr><td colspan="8" class="empty-msg">5주 초과 지연 건 없음 👍</td></tr>';
+}
+function itemStages(){
+  const by={};
+  RECORDS.forEach(r=>{const k=r.항목표준||'(미기재)'; (by[k]=by[k]||[]).push(r);});
+  return Object.entries(by).map(([name,rs])=>{
+    const s=collectStages(rs); const m={s1:avg(s.s1),s2:avg(s.s2),s3:avg(s.s3),s4:avg(s.s4)};
+    const b=bottleneckOf(m); const t=STAGES.reduce((a,k)=>a+(m[SKEY[k]]||0),0);
+    return {name,n:rs.length,m,bn:b.name,tot:Math.round(t*10)/10};
+  }).filter(x=>x.tot>0);
+}
+function reviewerStats(){
+  const by={};
+  RECORDS.forEach(r=>{ if(!r.검토자||r.s3==null||r.s3<0) return;
+    splitTesters(r.검토자).forEach(n=>{ (by[n]=by[n]||[]).push(r.s3); }); });
+  return Object.entries(by).map(([name,arr])=>({
+    name, n:arr.length, avg:avg(arr), max:Math.max(...arr), over:arr.filter(v=>v>7).length
+  })).sort((a,b)=>(b.avg||0)-(a.avg||0));
+}
+
+/* ===================== 인증(자격) 매트릭스 (별도 CSV/붙여넣기) ===================== */
+let CERT=null;
+/* 표 텍스트 파싱: 탭 우선(엑셀 복사), 없으면 CSV. 헤더에 탭이 있으면 탭 구분으로 처리 */
+function parseTable(text){
+  const firstLine=(text||'').split(/\r?\n/)[0]||'';
+  if(firstLine.includes('\t')){   // 탭 구분(엑셀에서 복사·붙여넣기)
+    return text.split(/\r?\n/).filter(l=>l.trim()!=='').map(l=>l.split('\t'));
+  }
+  return parseCSV(text);          // 쉼표 구분(CSV)
+}
+function parseCert(text){
+  const rows=parseTable(text); if(rows.length<2) return null;
+  const H=rows[0];
+  const iSop=colIndex(H,'SOP'), i제품=colIndex(H,'제품'), i시험법=colIndex(H,'시험법');
+  const iEnd=colIndex(H,'인증자 수')>=0?colIndex(H,'인증자 수'):colIndex(H,'인증자');
+  if(i제품<0||iEnd<0||i시험법<0) return {error:true};
+  const testerCols=[]; for(let j=i제품+1;j<iEnd;j++){ if((H[j]||'').trim()) testerCols.push(j); }
+  const methods=[], byTester={};
+  for(let r=1;r<rows.length;r++){
+    const row=rows[r]; if(!row||!(row[i시험법]||'').trim()) continue;
+    const 시험법=(row[i시험법]||'').trim(), 제품=(row[i제품]||'').trim(), sop=(row[iSop]||'').trim();
+    const certs=[], progs=[];
+    testerCols.forEach(j=>{ const v=(row[j]||'').trim(); const name=(H[j]||'').trim();
+      if(v==='O'||v==='o') certs.push(name);
+      else if(v.includes('진행')) progs.push(name);
+    });
+    methods.push({sop,시험법,제품,certs,progs,cnt:certs.length});
+    certs.forEach(n=>{(byTester[n]=byTester[n]||{cert:[],prog:[]}).cert.push(시험법);});
+    progs.forEach(n=>{(byTester[n]=byTester[n]||{cert:[],prog:[]}).prog.push(시험법);});
+  }
+  return {methods,byTester};
+}
+function renderCert(){
+  if(!CERT||CERT.error){ document.getElementById('cert-section').style.display='none'; return; }
+  document.getElementById('cert-section').style.display='block';
+  const single=CERT.methods.filter(m=>m.cnt===1).length, none=CERT.methods.filter(m=>m.cnt===0).length;
+  document.getElementById('cert-summary').innerHTML=
+    `<div>총 시험법 <b>${CERT.methods.length}</b></div>`
+    +`<div>단일점(1명) <b style="color:var(--warn)">${single}</b></div>`
+    +`<div>무자격(0명) <b style="color:var(--over)">${none}</b></div>`
+    +`<div>인증 시험자 <b>${Object.keys(CERT.byTester).length}</b>명</div>`;
+  const ms=[...CERT.methods].sort((a,b)=>a.cnt-b.cnt);   // 위험한 것(인증자 적은 순) 먼저
+  document.querySelector('#tbl-cert-method tbody').innerHTML=ms.map(m=>{
+    const risk = m.cnt===0?'<span class="dday over">무자격</span>':(m.cnt===1?'<span class="dday near">단일점</span>':'<span style="color:var(--muted)">—</span>');
+    return `<tr>
+      <td class="wrapcell">${esc(m.시험법)}${m.sop?`<br><span style="color:var(--muted);font-size:10.5px">${esc(m.sop)}</span>`:''}</td>
+      <td>${esc(m.제품)}</td>
+      <td class="num" style="font-weight:700;color:${m.cnt===0?'var(--over)':(m.cnt===1?'var(--warn)':'inherit')}">${m.cnt}</td>
+      <td class="num">${m.progs.length||''}</td>
+      <td>${risk}</td>
+      <td class="wrapcell" style="font-size:12px">${m.certs.map(esc).join(', ')}${m.progs.length?` <span style="color:var(--caution)">(진행중: ${m.progs.map(esc).join(', ')})</span>`:''}</td></tr>`;
+  }).join('') || '<tr><td colspan="6" class="empty-msg">인증 데이터 없음</td></tr>';
+  const ts=Object.entries(CERT.byTester).sort((a,b)=>b[1].cert.length-a[1].cert.length);
+  document.querySelector('#tbl-cert-tester tbody').innerHTML=ts.map(([name,o],i)=>`
+    <tr><td class="num" style="color:var(--muted)">${i+1}</td><td>${esc(name)}</td>
+      <td class="num"><b>${o.cert.length}</b></td>
+      <td class="num">${o.prog.length||''}</td>
+      <td class="wrapcell" style="font-size:12px">${o.cert.map(esc).join(', ')}</td></tr>`).join('')
+    || '<tr><td colspan="5" class="empty-msg">인증 데이터 없음</td></tr>';
+  applySort('tbl-cert-method'); applySort('tbl-cert-tester');
+}
+const CERT_KEY='pcv_cert_csv_v1';
+function processCert(text,fromRestore){
+  CERT=parseCert(text);
+  const meta=document.getElementById('cert-meta');
+  if(!CERT){ meta.textContent='인증표 데이터 행이 없습니다.'; return; }
+  if(CERT.error){ meta.innerHTML='<span style="color:var(--over)">인증표 형식 인식 실패 — 헤더에 제품·시험법·인증자 수 컬럼이 필요합니다.</span>'; return; }
+  renderCert();
+  meta.innerHTML=`<b>인증표</b> · 시험법 ${CERT.methods.length}개 · 시험자 ${Object.keys(CERT.byTester).length}명`+(fromRestore?' <span style="color:var(--accent)">· 복원됨</span>':'');
+  document.getElementById('btn-clear-cert').style.display='inline-block';
+  ['tbl-cert-method','tbl-cert-tester'].forEach(makeSortable);
+  if(!fromRestore){ try{localStorage.setItem(CERT_KEY,text);}catch(e){} }
+}
+function handleCert(file){ const rd=new FileReader(); rd.onload=()=>processCert(decodeBuffer(rd.result),false); rd.readAsArrayBuffer(file); }
+function clearCert(){ try{localStorage.removeItem(CERT_KEY);}catch(e){} CERT=null;
+  document.getElementById('cert-section').style.display='none';
+  document.getElementById('cert-csv').value=''; document.getElementById('cert-meta').textContent='인증표 CSV를 선택하세요 (선택 사항)';
+  document.getElementById('btn-clear-cert').style.display='none'; }
+
+/* ===================== 수요 vs 처리량 (주별 접수 vs 완료 + 누적 backlog) =====================
+   단위 = 접수번호(RE-/RP-) 고유 건수.
+   접수=접수일 주 · 완료='그 접수번호의 모든 시험 완료' & 최종 완료일(일지검토일→없으면 첨부일) 주. */
+function renderFlow(){
+  // 접수번호별 집계
+  const acc={};
+  RECORDS.forEach(r=>{ const no=r.접수; if(!no) return;
+    const a=acc[no]=acc[no]||{접수일:null, total:0, doneN:0, lastDone:null};
+    if(r.접수일 && (!a.접수일 || r.접수일<a.접수일)) a.접수일=r.접수일;   // 가장 이른 접수일
+    if(r.cat!=='해당없음') a.total++;                                    // 유효 시험 수
+    if(r.cat==='완료'){ a.doneN++; if(r.완료일 && (!a.lastDone || r.완료일>a.lastDone)) a.lastDone=r.완료일; }
+  });
+  const recv={}, done={}, wkSet=new Set();
+  Object.values(acc).forEach(a=>{
+    if(a.접수일){ const w=weekStartMonday(a.접수일); recv[w]=(recv[w]||0)+1; wkSet.add(w); }
+    // 완료 접수 = 유효 시험이 모두 완료된 접수번호 & 최종 완료일이 있을 때
+    if(a.total>0 && a.doneN>=a.total && a.lastDone){ const w=weekStartMonday(a.lastDone); done[w]=(done[w]||0)+1; wkSet.add(w); }
+  });
+  const weeks=[...wkSet].sort();
+  const chart=document.getElementById('flow-chart');
+  const totR=Object.values(recv).reduce((a,b)=>a+b,0), totD=Object.values(done).reduce((a,b)=>a+b,0);
+  document.getElementById('flow-summary').innerHTML=
+    `<div>총 접수 <b style="color:var(--accent)">${totR}</b></div><div>총 완료 <b style="color:var(--done)">${totD}</b></div>`
+    +`<div>현재 backlog <b style="color:${totR-totD>0?'var(--over)':'var(--done)'}">${totR-totD}</b> <span style="color:var(--muted);font-size:11px">(접수−완료, 접수번호 기준)</span></div>`;
+  if(!weeks.length){ chart.innerHTML='<span style="color:var(--muted);font-size:13px">접수/완료 날짜 데이터 없음</span>'; document.getElementById('flow-note').textContent=''; return; }
+  const mx=Math.max(1,...weeks.map(w=>Math.max(recv[w]||0,done[w]||0)));
+  let cum=0; const cums=[];
+  chart.innerHTML=weeks.map(w=>{
+    const rv=recv[w]||0, dv=done[w]||0, net=rv-dv; cum+=net; cums.push({w,cum});
+    return `<div class="fcol">
+      <div class="fbars">
+        <div class="fb recv" style="height:${Math.max(rv/mx*130,rv?2:0)}px"><span class="fbv">${rv||''}</span></div>
+        <div class="fb done" style="height:${Math.max(dv/mx*130,dv?2:0)}px"><span class="fbv">${dv||''}</span></div>
+      </div>
+      <div class="fnet ${net>0?'pos':(net<0?'neg':'')}">${net>0?'+'+net:net}</div>
+      <div class="flb">${weekLabelKR(w)}</div>
+    </div>`;
+  }).join('');
+  const bmax=Math.max(1,...cums.map(c=>Math.abs(c.cum)));
+  document.getElementById('flow-note').innerHTML =
+    `<div class="backstrip">${cums.map(c=>`<div class="bcell"><span class="bv" style="color:${c.cum>0?'var(--over)':'var(--done)'}">${c.cum}</span>${weekLabelKR(c.w)}</div>`).join('')}</div>`
+    +`<div style="margin-top:6px">주별 <b>+</b>=밀림(접수>완료), <b>−</b>=따라잡음 · 아래 줄=누적 backlog(양수 지속=구조적 적체) · <b>단위: 접수번호</b> · 완료=그 접수의 모든 시험 완료</div>`;
+}
+
+/* ===================== 시험자별 WIP (현재 부하) ===================== */
+function renderWIP(){
+  const by={};
+  RECORDS.forEach(r=>{
+    if(r.cat!=='진행'&&r.cat!=='미착수') return;                 // 미완료만
+    splitTesters(r.시험자).forEach(t=>{
+      const o=by[t]=by[t]||{wip:0,정상:0,주의:0,경고:0,타겟초과:0,maxDays:0};
+      o.wip++; if(o[r.tier]!=null)o[r.tier]++;
+      if(r.days!=null&&r.days>o.maxDays)o.maxDays=r.days;
+    });
+  });
+  // 위험 가중 정렬: 타겟초과>경고>주의>정상
+  const rows=Object.entries(by).sort((a,b)=>{
+    const s=o=>o.타겟초과*1000+o.경고*100+o.주의*10+o.정상; return s(b[1])-s(a[1]);
+  });
+  const tb=document.querySelector('#tbl-wip tbody');
+  if(!rows.length){ tb.innerHTML='<tr><td colspan="9" class="empty-msg">미완료(진행+미착수) 건이 없습니다</td></tr>'; return; }
+  const mx=Math.max(1,...rows.map(([,o])=>o.wip));
+  tb.innerHTML=rows.map(([name,o],i)=>{
+    const seg=(v,c)=>v?`<span style="width:${v/o.wip*100}%;background:${c}"></span>`:'';
+    const stack=`<div class="stackbar">${seg(o.정상,'var(--ok)')}${seg(o.주의,'var(--caution)')}${seg(o.경고,'var(--warn)')}${seg(o.타겟초과,'var(--over)')}</div>`;
+    return `<tr>
+      <td class="num" style="color:var(--muted)">${i+1}</td><td>${esc(name)}</td>
+      <td class="num"><b>${o.wip}</b></td>
+      <td class="num">${o.정상||''}</td>
+      <td class="num" style="color:${o.주의?'var(--caution)':'inherit'}">${o.주의||''}</td>
+      <td class="num" style="color:${o.경고?'var(--warn)':'inherit'}">${o.경고||''}</td>
+      <td class="num" style="color:${o.타겟초과?'var(--over)':'inherit'};font-weight:${o.타겟초과?'700':'400'}">${o.타겟초과||''}</td>
+      <td class="num">${o.maxDays||''}</td>
+      <td>${stack}</td></tr>`;
+  }).join('');
+  applySort('tbl-wip');
+}
+
+/* ===================== 시험자 × 주 완료 그리드 (일지검토수행일 기준 주) ===================== */
+function renderTesterWeek(){
+  // 완료(보고서첨부) & 일지검토수행일 있는 건만 → 그 주(월요일 키)로 집계, 공동시험 각자 1건
+  const cell={}, weekSet=new Set(), testerTot={};
+  RECORDS.forEach(r=>{
+    if(r.cat!=='완료' || !r.일지검토일) return;
+    const wk=weekStartMonday(r.일지검토일);
+    weekSet.add(wk);
+    splitTesters(r.시험자).forEach(t=>{
+      cell[t]=cell[t]||{}; cell[t][wk]=(cell[t][wk]||0)+1;
+      testerTot[t]=(testerTot[t]||0)+1;
+    });
+  });
+  const weeks=[...weekSet].sort();                              // 시간순
+  const testers=Object.keys(testerTot).sort((a,b)=>testerTot[b]-testerTot[a]);  // 완료 많은 순
+  const thead=document.querySelector('#tbl-tw thead'), tbody=document.querySelector('#tbl-tw tbody');
+  if(!weeks.length||!testers.length){
+    thead.innerHTML=''; tbody.innerHTML='<tr><td class="empty-msg">완료(보고서첨부)+일지검토수행일이 있는 건이 없습니다</td></tr>'; return;
+  }
+  const mx=Math.max(1,...Object.values(cell).flatMap(o=>Object.values(o)));
+  thead.innerHTML='<tr><th class="name">시험자</th>'+weeks.map(w=>`<th title="주 시작 ${w}">${weekLabelKR(w)}</th>`).join('')+'<th class="tot">합계</th></tr>';
+  tbody.innerHTML=testers.map(t=>{
+    const cells=weeks.map(w=>{
+      const v=(cell[t]&&cell[t][w])||0;
+      const a=v?(0.12+0.55*v/mx).toFixed(2):0;                  // 값 클수록 진하게
+      return `<td style="background:${v?`rgba(33,102,172,${a})`:'transparent'}" class="${v?'':'z0'}">${v||'·'}</td>`;
+    }).join('');
+    return `<tr><td class="name">${esc(t)}</td>${cells}<td class="tot">${testerTot[t]}</td></tr>`;
+  }).join('');
+  // 하단 합계행(주별 팀 전체)
+  const colTot=weeks.map(w=>testers.reduce((s,t)=>s+((cell[t]&&cell[t][w])||0),0));
+  tbody.innerHTML+=`<tr><td class="name tot">주별 합계</td>${colTot.map(v=>`<td class="tot">${v}</td>`).join('')}<td class="tot">${colTot.reduce((a,b)=>a+b,0)}</td></tr>`;
+}
+
+/* ===================== 시험항목별 의뢰 건수 (항목명 원문 기준, 많은 순) ===================== */
+function renderItemCounts(){
+  const by={};
+  RECORDS.forEach(r=>{
+    const key=(r.항목표준||'(미기재)').trim()||'(미기재)';
+    const o=by[key]=by[key]||{총:0,완료:0,미완료:0,na:0,byG:{},std:isStdItem(r.항목, r.ctx)};
+    o.총++;
+    if(r.cat==='완료')o.완료++;
+    else if(r.cat==='진행'||r.cat==='미착수')o.미완료++;
+    else o.na++;
+    const g=r.구분||'미분류';                                  // 항목 내 제품 구분
+    const go=o.byG[g]=o.byG[g]||{총:0,완료:0,미완료:0};
+    go.총++; if(r.cat==='완료')go.완료++; else if(r.cat==='진행'||r.cat==='미착수')go.미완료++;
+  });
+  const rows=Object.entries(by).sort((a,b)=>b[1].총-a[1].총);
+  const mx=rows.length?rows[0][1].총:1;
+  document.querySelector('#tbl-items tbody').innerHTML = rows.map(([name,o],i)=>{
+    const dn=o.총-o.na, rt=dn>0?Math.round(o.완료/dn*1000)/10:0;
+    const parent=`<tr class="itemrow">
+      <td class="num" style="color:var(--muted)">${i+1}</td>
+      <td><span class="itcaret">▸</span>${esc(name)}${o.std?'':' <span class="dday near" title="SOP를 확정할 수 없는 표기(방법 미기재 등) — 관리표 표기 확인 필요">확인필요</span>'}</td>
+      <td class="num"><b>${o.총}</b></td>
+      <td class="num">${o.완료}</td>
+      <td class="num" style="color:${o.미완료?'var(--wip)':'inherit'}">${o.미완료||''}</td>
+      <td class="num">${rt}%</td>
+      <td><div class="minibar"><span style="width:${Math.round(o.총/mx*100)}%"></span></div></td></tr>`;
+    // 하위: 구분별 내역(많은 순)
+    const subs=Object.entries(o.byG).sort((a,b)=>b[1].총-a[1].총).map(([g,go])=>{
+      const gm = g==='미분류' ? 'color:var(--muted)' : '';
+      return `<tr class="subrow">
+        <td></td>
+        <td style="padding-left:26px;font-size:12px;${gm}">└ ${esc(g)}</td>
+        <td class="num">${go.총}</td>
+        <td class="num">${go.완료||''}</td>
+        <td class="num" style="color:${go.미완료?'var(--wip)':'inherit'}">${go.미완료||''}</td>
+        <td class="num" style="color:var(--muted)">${Math.round(go.총/o.총*100)}%</td>
+        <td><div class="minibar" style="background:#e9eef5"><span style="width:${Math.round(go.총/o.총*100)}%;background:#9db8d6"></span></div></td></tr>`;
+    }).join('');
+    return parent+subs;
+  }).join('');
+  applySort('tbl-items');
+}
+function renderTesterCounts(){
+  const filt=document.getElementById('ft-item')?document.getElementById('ft-item').value:'';  // 시험자 표 전용 항목 필터
+  const by={};
+  RECORDS.forEach(r=>{
+    if(filt && r.항목표준!==filt) return;                 // 항목 필터: 해당 항목을 하는 시험자만 집계
+    splitTesters(r.시험자).forEach(t=>{
+      const o=by[t]=by[t]||{총:0,완료:0,미완료:0,na:0,leadSum:0,leadN:0,items:new Set()};
+      o.총++;
+      if(r.cat==='완료')o.완료++;
+      else if(r.cat==='진행'||r.cat==='미착수')o.미완료++;
+      else o.na++;
+      if(r.lead!=null&&r.lead>=0){o.leadSum+=r.lead;o.leadN++;}
+      o.items.add(r.항목표준||'(미기재)');                  // 담당 시험항목(고유)
+    });
+  });
+  const rows=Object.entries(by).sort((a,b)=>b[1].총-a[1].총);
+  const mx=rows.length?rows[0][1].총:1;
+  document.querySelector('#tbl-tester tbody').innerHTML = rows.length ? rows.map(([name,o],i)=>{
+    const dn=o.총-o.na, rt=dn>0?Math.round(o.완료/dn*1000)/10:0;
+    const avgLead=o.leadN?Math.round(o.leadSum/o.leadN*10)/10+'d':'–';
+    const items=[...o.items].sort((a,b)=>a.localeCompare(b,'ko')).map(esc).join(', ');   // 담당 항목 전체
+    return `<tr>
+      <td class="num" style="color:var(--muted)">${i+1}</td>
+      <td>${esc(name)}</td>
+      <td class="num"><b>${o.총}</b></td>
+      <td class="num">${o.완료}</td>
+      <td class="num" style="color:${o.미완료?'var(--wip)':'inherit'}">${o.미완료||''}</td>
+      <td class="num">${rt}%</td>
+      <td class="num">${avgLead}</td>
+      <td class="wrapcell" style="font-size:12px">${items}</td>
+      <td><div class="minibar"><span style="width:${Math.round(o.총/mx*100)}%"></span></div></td></tr>`;
+  }).join('') : `<tr><td colspan="9" class="empty-msg">해당 시험항목을 수행한 시험자가 없습니다</td></tr>`;
+  applySort('tbl-tester');
+}
+
+/* ===================== 접수 건수 추이 (주차별/월별, 전체 데이터) ===================== */
+let INTAKE_PERIOD='week';
+function weekStartMonday(s){
+  // 'YYYY-MM-DD' → 해당 주 월요일. UTC로 고정 연산해 로컬 타임존 밀림을 방지(KST 안전)
+  const d=new Date(s+'T00:00:00Z');
+  const wd=d.getUTCDay();                       // 0=일 … 6=토
+  d.setUTCDate(d.getUTCDate()-(wd===0?6:wd-1)); // 월요일로 이동
+  return d.toISOString().slice(0,10);
+}
+function addDaysUTC(s,n){ const d=new Date(s+'T00:00:00Z'); d.setUTCDate(d.getUTCDate()+n); return d.toISOString().slice(0,10); }
+function weekLabelKR(mondayStr){
+  // 그 주의 '목요일'이 속한 달로 소속 결정(ISO 규칙) → 'M월 N주'
+  const thu=addDaysUTC(mondayStr,3);           // 월요일+3 = 목요일
+  const [ , m, d]=thu.split('-').map(Number);
+  const ord=Math.floor((d-1)/7)+1;             // 그 달의 몇 번째 목요일인지
+  return `${m}월 ${ord}주`;
+}
+function renderIntake(){
+  const chart=document.getElementById('intake-chart');
+  const dated=RECORDS.filter(r=>r.접수일);
+  // 접수번호(RE-/RP-) 기준 '고유' 집계: 같은 접수번호의 여러 시험항목은 1건으로 카운트
+  const seenByKey={};   // period → Set(접수번호)
+  dated.forEach(r=>{
+    const key=INTAKE_PERIOD==='month'?r.접수일.slice(0,7):weekStartMonday(r.접수일);
+    (seenByKey[key]=seenByKey[key]||new Set()).add(r.접수||('행'+Math.random()));
+  });
+  const map={}; Object.keys(seenByKey).forEach(k=>map[k]=seenByKey[k].size);
+  const keys=Object.keys(map).sort();
+  const uniqTotal=new Set(dated.map(r=>r.접수).filter(Boolean)).size;
+  document.getElementById('intake-hint').textContent =
+    `고유 접수 ${uniqTotal.toLocaleString()}건(접수번호 기준) · ${keys.length}개 ${INTAKE_PERIOD==='month'?'월':'주'}`;
+  if(!keys.length){ chart.innerHTML='<span style="color:var(--muted);font-size:13px">접수일 데이터 없음</span>'; return; }
+  const mx=Math.max(1,...keys.map(k=>map[k]));
+  chart.innerHTML=keys.map(k=>{
+    const label=INTAKE_PERIOD==='month'?k.slice(2):weekLabelKR(k);   // 월: YY-MM / 주: M월 N주
+    return `<div class="ibar" title="${INTAKE_PERIOD==='week'?('주 시작 '+k+' · '):''}${map[k]}건(고유 접수)">
+      <span class="v">${map[k]}</span>
+      <div class="bar" style="height:${Math.max(Math.round(map[k]/mx*120),2)}px"></div>
+      <span class="lb">${label}</span></div>`;
+  }).join('');
+}
+function rowGT(name,o,muted,showTodo){
+  const dn=o.총-o.해당없음, rt=dn>0?Math.round(o.완료/dn*1000)/10:0;
+  const tot=o.완료+o.진행+o.미착수||1;
+  const seg=(v,c)=>v?`<span style="width:${v/tot*100}%;background:${c}" title="${c}"></span>`:'';
+  const stack=`<div class="stackbar">${seg(o.완료,'var(--done)')}${seg(o.진행,'var(--wip)')}${seg(o.미착수,'var(--todo)')}</div>`;
+  const todoCell = showTodo ? `<td class="num">${o.미착수}</td>` : '';
+  return `<tr><td${muted?' style="color:var(--muted)"':''}>${esc(name)}</td><td class="num">${o.총}</td><td class="num">${o.완료}</td>
+    <td class="num">${o.진행}</td>${todoCell}
+    <td class="num" style="color:${o.over4?'var(--over)':'inherit'}">${o.over4||''}</td>
+    <td class="num">${rt}%</td><td>${stack}</td></tr>`;
+}
+
+/* ===================== 10) 리드타임 렌더 (필터 결과) ===================== */
+function renderLead(list){
+  const set=(id,v)=>document.getElementById(id).textContent=v;
+  const leads=list.map(r=>r.lead).filter(v=>v!=null&&v>=0);         // 접수→일지검토: 분포/평균용
+  // 구간 = 미완료(진행+미착수) 건의 '접수일 → 오늘(조회일)' 경과일 (KST)
+  const openDays=list.filter(r=>(r.cat==='진행'||r.cat==='미착수')&&r.days!=null&&r.days>=0).map(r=>r.days);
+  const n=leads.length, on=openDays.length;
+  set('l-n', n.toLocaleString());
+  const b1=openDays.filter(v=>v<=14).length, b2=openDays.filter(v=>v>14&&v<=28).length,
+        b3=openDays.filter(v=>v>28&&v<=35).length, b4=openDays.filter(v=>v>35).length;
+  const pct=v=>on?` (${Math.round(v/on*100)}%)`:'';
+  document.getElementById('l-b1').textContent = on?`${b1}건${pct(b1)}`:'–';
+  document.getElementById('l-b2').textContent = on?`${b2}건${pct(b2)}`:'–';
+  document.getElementById('l-b3').textContent = on?`${b3}건${pct(b3)}`:'–';
+  document.getElementById('l-b4').textContent = on?`${b4}건${pct(b4)}`:'–';
+  if(!n){ ['l-avg','l-med','l-min','l-max'].forEach(id=>set(id,'–'));
+    document.getElementById('l-histo').innerHTML='';
+    document.getElementById('l-note').textContent='산출 가능한 행 없음 · 접수일과 일지검토수행일이 모두 있어야 리드타임이 계산됩니다.';
+    return; }
+  set('l-avg', Math.round(leads.reduce((a,b)=>a+b,0)/n*10)/10);
+  set('l-med', median(leads)); set('l-min', Math.min(...leads)); set('l-max', Math.max(...leads));
+  // 히스토그램(분포) = 전체 건
+  const bins=[['~7',0,7],['8~14',8,14],['15~21',15,21],['22~28',22,28],['29~35',29,35],['35 초과',36,1e9]];
+  const c=bins.map(()=>0);
+  leads.forEach(v=>{const i=bins.findIndex(([,lo,hi])=>v>=lo&&v<=hi);if(i>=0)c[i]++;});
+  const mx=Math.max(...c,1);
+  document.getElementById('l-histo').innerHTML=bins.map(([lab],i)=>`
+    <div class="hbar"><span class="hv">${c[i]||''}</span>
+      <div class="bar ${i===bins.length-1?'over':''}" style="height:${c[i]?Math.max(Math.round(c[i]/mx*72),3):0}px"></div>
+      <span class="hl">${lab}일</span></div>`).join('');
+  const neg=list.filter(r=>r.lead!=null&&r.lead<0).length;
+  document.getElementById('l-note').textContent =
+    `분포·평균 = 접수→일지검토 ${n}건 · 구간 = 미완료 ${on}건의 접수→오늘 경과 기준` + (neg?` · ⚠ 음수 리드타임 ${neg}건(일지검토일<접수일, 데이터 확인 필요)`:'');
+}
+
+/* ===================== 11) 리스트 렌더 (필터) ===================== */
+const TIERCLS={정상:'t-ok',주의:'t-caution',경고:'t-warn',타겟초과:'t-over',완료:'',해당없음:'',미상:''};
+const STATUSBADGE={완료:'b-done',진행:'b-wip',미착수:'b-todo',해당없음:'b-na',이상값:'b-err'};
+function renderList(){
+  const q=document.getElementById('f-q').value.trim().toLowerCase();
+  const fp=document.getElementById('f-product').value, fs=document.getElementById('f-status').value;
+  const ft=document.getElementById('f-tier').value, fg=document.getElementById('f-group').value;
+  const fsero=document.getElementById('f-sero').value;
+  const fty=document.getElementById('f-type').value, fte=document.getElementById('f-tester').value;
+  const fitem=document.getElementById('f-item').value;
+  const dfrom=document.getElementById('f-from').value, dto=document.getElementById('f-to').value;
+  const over4=document.getElementById('f-over4').checked, noR=document.getElementById('f-noreason').checked;
+
+  let list=RECORDS.filter(r=>{
+    if(fp&&r.제품!==fp) return false;
+    if(fs&&r.cat!==fs) return false;
+    if(ft&&r.tier!==ft) return false;
+    if(fg&&r.구분!==fg) return false;
+    if(fsero&&r.혈청형!==fsero) return false;
+    if(fty&&r.유형!==fty) return false;
+    if(fitem&&r.항목표준!==fitem) return false;
+    if(fte&&!splitTesters(r.시험자).includes(fte)) return false;
+    if(dfrom){ if(!r.접수일||r.접수일<dfrom) return false; }   // KST 문자열 비교(밀림 없음)
+    if(dto){ if(!r.접수일||r.접수일>dto) return false; }
+    if(over4&&!((r.cat==='진행'||r.cat==='미착수')&&r.days>28)) return false;
+    if(noR&&!(needReason(r)&&!(DELAY[delayKey(r)]||'').trim())) return false;
+    if(q){ const hay=(r.접수+' '+r.검체+' '+r.항목+' '+r.제조).toLowerCase(); if(!hay.includes(q)) return false; }
+    return true;
+  });
+  list.sort((a,b)=>{ const ao=(a.cat==='진행'||a.cat==='미착수'),bo=(b.cat==='진행'||b.cat==='미착수');
+    if(ao!==bo) return ao?-1:1; return (b.days||-1)-(a.days||-1); });
+
+  document.getElementById('listcount').textContent=`${list.length} / ${RECORDS.length}건`;
+  renderLead(list);
+  const tb=document.querySelector('#tbl-list tbody');
+  if(!list.length){tb.innerHTML=`<tr><td colspan="13" class="empty-msg">조건에 맞는 시험이 없습니다</td></tr>`;return;}
+
+  tb.innerHTML=list.map(r=>{
+    const rowcls=r.tier==='타겟초과'?'row-over':(r.tier==='경고'?'row-warn':'');
+    const stat=`<span class="badge ${STATUSBADGE[r.cat]}">${r.cat}</span>`;
+    const warn= r.cat==='완료'?'<span class="badge b-done">완료</span>'
+        :(r.cat==='해당없음'?'—':`<span class="${TIERCLS[r.tier]}">${r.tier}</span>`);
+    const elapsed=(r.cat==='완료'||r.cat==='해당없음')?'—'
+        :`<span class="${TIERCLS[r.tier]}">${weeksLabel(r.days)}${r.days!=null?` (${r.days}d)`:''}</span>`
+         +(r.dday!=null?`<br><span class="dday ${r.dday<0?'over':(r.dday<=5?'near':'')}">${r.dday>=0?'D-'+r.dday:'D+'+(-r.dday)}</span>`:'');
+    const leadCell = r.lead==null?'<span style="color:var(--muted)">—</span>'
+        :(r.lead<0?`<span style="color:var(--over)">${r.lead}d ⚠</span>`
+        :`<span class="${r.lead<=35?'':'t-over'}">${r.lead}d</span>`);
+    let reasonCell='—';
+    if(needReason(r)){
+      const val=DELAY[delayKey(r)]||'', filled=val.trim()?'filled':'';
+      reasonCell=`${filled?'':'<span class="needtag">▲ 사유 미작성</span>'}<textarea class="reason ${filled}" data-key="${esc(delayKey(r))}" placeholder="지연사유·향후 계획 입력">${esc(val)}</textarea>`;
+    }
+    const gcls=r.구분==='미분류'?'style="color:var(--muted)"':'';
+    return `<tr class="${rowcls}">
+      <td style="font-family:var(--mono)">${esc(r.접수)}</td>
+      <td class="wrapcell"><b>${esc(r.검체)}</b><br><span style="color:var(--muted)">${esc(r.항목)}</span></td>
+      <td style="font-family:var(--mono)">${esc(r.제조)||'—'}</td>
+      <td>${esc(r.혈청형)||'<span style="color:var(--muted)">—</span>'}</td>
+      <td class="wrapcell" ${gcls}>${esc(r.구분)}${r.구분상세?`<br><span style="color:var(--muted);font-size:10.5px">${esc(r.구분상세)}</span>`:''}</td>
+      <td class="wrapcell">${esc(r.유형)}</td><td class="wrapcell">${esc(r.시험자)}</td>
+      <td class="num">${esc(r.접수일||'—')}</td>
+      <td class="num">${elapsed}</td>
+      <td class="num">${leadCell}</td>
+      <td>${stat}</td><td>${warn}</td>
+      <td class="hide-on-capture wrapcell">${reasonCell}</td></tr>`;
+  }).join('');
+
+  tb.querySelectorAll('textarea.reason').forEach(t=>{
+    t.addEventListener('input',()=>{ DELAY[t.dataset.key]=t.value; saveDelay();
+      const has=!!t.value.trim();
+      t.classList.toggle('filled',has);                      // 작성됨 → 초록 / 미작성 → 빨강
+      const tag=t.parentElement.querySelector('.needtag');   // '▲ 사유 미작성' 태그 표시/숨김
+      if(tag) tag.style.display = has ? 'none' : '';
+      renderSummary();                                       // 요약존 '지연사유 미작성' 카운트 갱신
+    });
+  });
+}
+
+/* ===================== 12) 파일 읽기 + 인코딩(UTF-8/EUC-KR) ===================== */
+function decodeBuffer(buf){
+  const b=new Uint8Array(buf); let s=0;
+  if(b[0]===0xEF&&b[1]===0xBB&&b[2]===0xBF) s=3;
+  const body=b.subarray(s);
+  try{ return new TextDecoder('utf-8',{fatal:true}).decode(body); }
+  catch(e){ try{ return new TextDecoder('euc-kr').decode(body); } catch(e2){ return new TextDecoder('utf-8').decode(body); } }
+}
+const CSV_KEY='pcv_csv_text_v1', CSV_NAME_KEY='pcv_csv_name_v1';
+function processCsvText(text,name,fromRestore){
+  const meta=document.getElementById('filemeta');
+  const rows=parseTable(text);   // 탭(엑셀 복사) / CSV 자동 인식
+  if(rows.length<2){meta.textContent='데이터 행이 없습니다. 헤더+데이터가 있는 CSV인지 확인하세요.';return;}
+  RECORDS=buildRecords(rows);
+  document.getElementById('result').style.display='block';
+  renderSummary(); renderList();
+  meta.innerHTML=`<b>${esc(name||'데이터')}</b> · ${RECORDS.length.toLocaleString()}건 집계 완료`
+    + (fromRestore?' <span style="color:var(--accent)">· 저장된 데이터 복원됨</span>':'');
+  document.getElementById('btn-clear-data').style.display='inline-block';
+  if(!fromRestore){                          // 새 업로드만 저장(복원 시 재저장 불필요)
+    try{ localStorage.setItem(CSV_KEY,text); localStorage.setItem(CSV_NAME_KEY,name||''); }
+    catch(e){ meta.innerHTML+=' <span style="color:var(--over)">· 용량초과로 저장 실패(새로고침 시 재업로드 필요)</span>'; }
+  }
+}
+function handleFile(file){
+  const reader=new FileReader();
+  reader.onload=()=>processCsvText(decodeBuffer(reader.result), file.name, false);
+  reader.onerror=()=>{document.getElementById('filemeta').textContent='파일을 읽지 못했습니다.';};
+  reader.readAsArrayBuffer(file);
+}
+function restoreSaved(){                      // 페이지 로드 시 저장된 데이터 자동 복원
+  try{ const t=localStorage.getItem(CSV_KEY);
+    if(t) processCsvText(t, localStorage.getItem(CSV_NAME_KEY)||'저장된 데이터', true); }catch(e){}
+}
+function clearSavedData(){
+  try{ localStorage.removeItem(CSV_KEY); localStorage.removeItem(CSV_NAME_KEY); }catch(e){}
+  RECORDS=[]; document.getElementById('result').style.display='none';
+  document.getElementById('csv').value='';
+  document.getElementById('filemeta').textContent='저장된 데이터를 지웠습니다. 새 CSV를 올리세요.';
+  document.getElementById('btn-clear-data').style.display='none';
+}
+
+/* ===================== 13) 이벤트 ===================== */
+document.getElementById('today').textContent='오늘(KST): '+TODAY;
+loadDelay();
+restoreSaved();                              // 저장된 데이터가 있으면 자동 복원
+['tbl-group','tbl-type','tbl-items','tbl-tester','tbl-wip','tbl-root-item','tbl-root-tester','tbl-root-rev','tbl-root-late'].forEach(makeSortable);  // 표 컬럼 정렬 활성화
+// 시험항목별: 항목 행 클릭 → 그 아래 구분(제품 분류) 하위행 펼침/접힘
+document.querySelector('#tbl-items tbody').addEventListener('click',e=>{
+  const tr=e.target.closest('tr.itemrow'); if(!tr) return;
+  const caret=tr.querySelector('.itcaret'); let open=false;
+  let n=tr.nextElementSibling;
+  while(n && n.classList.contains('subrow')){ n.classList.toggle('show'); open=n.classList.contains('show'); n=n.nextElementSibling; }
+  if(caret) caret.textContent = open ? '▾' : '▸';
+});
+document.getElementById('ft-item').addEventListener('change',renderTesterCounts);   // 시험자표: 항목별 담당자 보기
+document.getElementById('ft-item-clear').addEventListener('click',()=>{document.getElementById('ft-item').value='';renderTesterCounts();});
+document.getElementById('btn-clear-data').addEventListener('click',clearSavedData);
+// 관리표 붙여넣기(탭 구분) 분석
+document.getElementById('btn-main-paste').addEventListener('click',()=>{
+  const t=document.getElementById('main-paste').value.trim();
+  if(!t){document.getElementById('filemeta').textContent='붙여넣은 내용이 없습니다.';return;}
+  processCsvText(t,'붙여넣은 관리표',false);
+});
+// 인증표 CSV
+document.getElementById('cert-csv').addEventListener('change',e=>{if(e.target.files[0])handleCert(e.target.files[0]);});
+document.getElementById('btn-clear-cert').addEventListener('click',clearCert);
+// 인증표 붙여넣기(탭 구분) 분석
+document.getElementById('btn-cert-paste').addEventListener('click',()=>{
+  const t=document.getElementById('cert-paste').value.trim();
+  if(!t){document.getElementById('cert-meta').textContent='붙여넣은 내용이 없습니다.';return;}
+  processCert(t,false);
+});
+const dropC=document.getElementById('drop-cert');
+['dragover','dragenter'].forEach(ev=>dropC.addEventListener(ev,e=>{e.preventDefault();dropC.classList.add('drag');}));
+dropC.addEventListener('dragleave',e=>{e.preventDefault();dropC.classList.remove('drag');});
+dropC.addEventListener('drop',e=>{e.preventDefault();dropC.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleCert(f);});
+try{ const ct=localStorage.getItem(CERT_KEY); if(ct) processCert(ct,true); }catch(e){}   // 인증표 자동 복원
+document.getElementById('csv').addEventListener('change',e=>{if(e.target.files[0])handleFile(e.target.files[0]);});
+const drop=document.getElementById('drop');
+['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('drag');}));
+drop.addEventListener('dragleave',e=>{e.preventDefault();drop.classList.remove('drag');});
+drop.addEventListener('drop',e=>{e.preventDefault();drop.classList.remove('drag');const f=e.dataTransfer.files[0];if(f)handleFile(f);});
+['f-q','f-product','f-status','f-tier','f-group','f-sero','f-type','f-item','f-tester','f-from','f-to','f-over4','f-noreason'].forEach(id=>{
+  const el=document.getElementById(id);
+  el.addEventListener(el.tagName==='INPUT'&&el.type==='text'?'input':'change',()=>{renderList();
+    if(id==='f-noreason'||id==='f-over4') renderSummary();});
+});
+document.getElementById('btn-dclear').addEventListener('click',()=>{
+  document.getElementById('f-from').value='';document.getElementById('f-to').value='';renderList();});
+// 필터 전체 초기화
+document.getElementById('btn-reset').addEventListener('click',()=>{
+  ['f-q','f-product','f-status','f-tier','f-group','f-sero','f-type','f-item','f-tester','f-from','f-to'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-over4').checked=false; document.getElementById('f-noreason').checked=false;
+  renderList();
+});
+document.getElementById('btn-export').addEventListener('click',()=>{
+  const blob=new Blob([JSON.stringify(DELAY,null,2)],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='PCV_지연사유_'+TODAY+'.json';a.click();});
+document.getElementById('btn-import').addEventListener('click',()=>document.getElementById('import-file').click());
+document.getElementById('import-file').addEventListener('change',e=>{
+  const f=e.target.files[0];if(!f)return;const rd=new FileReader();
+  rd.onload=()=>{try{Object.assign(DELAY,JSON.parse(rd.result));saveDelay();renderSummary();renderList();}catch(err){alert('JSON 형식이 아닙니다.');}};
+  rd.readAsText(f);});
+// 보고용 캡처 모드
+document.getElementById('capbtn').addEventListener('click',()=>{
+  const on=document.body.classList.toggle('capture');
+  document.getElementById('capbtn').textContent = on ? '↩ 편집 모드로' : '📸 보고용 캡처 모드';
+});
+// 섹션 토글(접기/펴기)
+document.querySelectorAll('.sec-title.toggle').forEach(t=>{
+  t.addEventListener('click',()=>{
+    const w=document.getElementById(t.dataset.target);
+    t.classList.toggle('collapsed'); if(w) w.classList.toggle('collapsed-body');
+  });
+});
+// 접수 추이 기간 전환(주차/월)
+document.querySelectorAll('.ptbtn').forEach(b=>{
+  b.addEventListener('click',()=>{
+    document.querySelectorAll('.ptbtn').forEach(x=>x.classList.remove('active'));
+    b.classList.add('active'); INTAKE_PERIOD=b.dataset.p; renderIntake();
+  });
+});
+</script>
+</body>
+</html>
