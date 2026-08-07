@@ -59,23 +59,12 @@
   .col-title{display:none;} /* 아이폰에선 탭이 제목 역할 → 숨김 */
 
   /* =========================================================
-     ★ 아이패드/넓은 화면 (가로 900px 이상): 3단 대시보드
-       탭 없이 추천덱·아이템·증강을 한 화면에 동시에 표시
+     ★ 아이패드/넓은 화면 (가로 900px 이상): 넉넉한 폭 + 다단 목록
      ========================================================= */
   @media (min-width:900px){
-    header .tabs{display:none;}                 /* 탭 숨김 */
-    header .patch{margin-top:4px;}
-    main{max-width:1280px; padding:20px 22px 48px;}
-    .board{
-      display:grid; grid-template-columns:1.1fr 1fr 1.1fr; gap:18px; align-items:start;
-    }
-    .view{display:block !important;}            /* 세 섹션 항상 표시 */
-    .col-title{
-      display:block; font-size:16px; font-weight:800; letter-spacing:-.02em;
-      padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--line2);
-    }
-    .combo-grid{grid-template-columns:1fr;}     /* 좁은 컬럼이라 1줄씩 */
-    .note{grid-column:1 / -1;}
+    main{max-width:1180px; padding:20px 22px 48px;}
+    #deckList{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;}
+    #dogamResult.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; align-items:start;}
   }
 
   /* 검색 */
@@ -183,6 +172,27 @@
   .tip .tt{font-weight:700; font-size:13.5px;}
   .tip .td2{font-size:12.5px; color:var(--fg2); margin-top:3px; line-height:1.5;}
   .seg{display:inline-block; font-size:11px; color:var(--fg3); margin-top:6px;}
+
+  /* 도감 */
+  .seg-tabs{display:flex; gap:6px; margin-bottom:12px;}
+  .seg-tab{flex:1; text-align:center; padding:8px 4px; border-radius:10px; font-size:13.5px;
+    font-weight:700; color:var(--fg2); background:var(--bg2); border:1px solid var(--line); cursor:pointer;}
+  .seg-tab.on{background:var(--bg3); color:var(--fg); border-color:var(--line2);}
+  #dogamCount{margin:0 0 8px;}
+  .dcard{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:11px 12px; margin-bottom:8px;}
+  .dcard .dh{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .dcard .nm{font-weight:800; font-size:14.5px; letter-spacing:-.01em;}
+  .dcard .en{font-size:11px; color:var(--fg3);}
+  .dcard .ds{font-size:12.5px; color:var(--fg2); margin-top:5px; line-height:1.5;}
+  .dcard .kv{font-size:12px; color:var(--fg3); margin-top:5px;}
+  .dcard .kv b{color:var(--fg2); font-weight:600;}
+  .cost{font-size:11px; font-weight:900; padding:2px 8px; border-radius:7px;}
+  .cost.c1{background:rgba(148,163,184,.18); color:#b7c0cf;}
+  .cost.c2{background:rgba(34,197,94,.16); color:var(--green);}
+  .cost.c3{background:rgba(59,130,246,.16); color:var(--blue);}
+  .cost.c4{background:rgba(168,85,247,.16); color:var(--purple);}
+  .cost.c5{background:rgba(240,180,41,.16); color:var(--gold);}
+  .ttype{font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; background:var(--bg3); color:var(--fg3);}
 </style>
 </head>
 <body>
@@ -193,8 +203,7 @@
   <div class="tabs">
     <div class="tab active" data-view="decks">추천덱</div>
     <div class="tab" data-view="reco">덱추천</div>
-    <div class="tab" data-view="items">아이템</div>
-    <div class="tab" data-view="augs">증강</div>
+    <div class="tab" data-view="dogam">도감</div>
     <div class="tab" data-view="analysis">분석</div>
   </div>
 </header>
@@ -226,33 +235,25 @@
     <div id="recoResult"></div>
   </section>
 
- <div class="board">
   <!-- ============ 추천 덱 ============ -->
   <section class="view active" id="view-decks">
-    <div class="col-title">♟️ 추천 덱</div>
-    <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 제이스, 리롤)" />
+    <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 벡스, 리롤)" />
     <div id="deckList"></div>
   </section>
 
-  <!-- ============ 아이템 조합 ============ -->
-  <section class="view" id="view-items">
-    <div class="col-title">🛡️ 아이템 조합</div>
-    <div class="label">기본 아이템 (조합 재료)</div>
-    <div class="comp-legend" id="compLegend"></div>
-    <input class="search" id="itemSearch" placeholder="완성 아이템 검색 (예: 무한의 대검)" />
-    <div class="combo-grid" id="comboGrid"></div>
+  <!-- ============ 도감 (챔피언·특성·아이템·증강) ============ -->
+  <section class="view" id="view-dogam">
+    <div class="seg-tabs" id="dogamTabs">
+      <span class="seg-tab on" data-sub="champions">챔피언</span>
+      <span class="seg-tab" data-sub="traits">특성</span>
+      <span class="seg-tab" data-sub="items">아이템</span>
+      <span class="seg-tab" data-sub="augments">증강</span>
+    </div>
+    <input class="search" id="dogamSearch" placeholder="이름·효과 검색" />
+    <div class="picker" id="dogamFilters"></div>
+    <div id="dogamCount" class="seg"></div>
+    <div id="dogamResult"></div>
   </section>
-
-  <!-- ============ 증강 · 특성 ============ -->
-  <section class="view" id="view-augs">
-    <div class="col-title">✨ 증강 · 특성</div>
-    <input class="search" id="augSearch" placeholder="증강·특성 검색" />
-    <div class="label">추천 증강</div>
-    <div id="augList"></div>
-    <div class="label" style="margin-top:18px;">특성 활성화 구간</div>
-    <div id="traitList"></div>
-  </section>
- </div>
 
   <!-- ============ 내 분석 & 코칭 ============ -->
   <section class="view" id="view-analysis">
@@ -277,13 +278,15 @@
   </section>
 
   <div class="note">
-    📌 <b>Set 17: Space Gods · 패치 17.8</b> 기준 실제 데이터 (2026-08-07)<br>
-    롤토체스는 패치마다 메타가 바뀝니다. 큰 변동이 있으면 파일 아래 <b>DATA</b>만 수정하세요.<br>
-    아이템 조합표는 표준 조합(거인의 허리띠+연습용 장갑 1종 제외)이며, 세부는 인게임에서 확인하세요.<br>
-    <span style="opacity:.7">참고: Mobalytics · METAsrc · BunnyMuffins · Tacter</span>
+    📌 <b>Set 17: Space Gods · 패치 17.8</b> 기준 (2026-08-07)<br>
+    <b>도감</b>(챔피언·특성·아이템·증강)은 국내 공식 데이터 <code>tftdata.js</code>에서 불러옵니다.<br>
+    <b>추천덱</b>은 큐레이션이라 파일 아래 <b>DATA</b>에서 수정, 도감은 <code>tftdata.js</code>를 교체하세요.<br>
+    <span style="opacity:.7">추천덱 참고: Mobalytics · METAsrc · BunnyMuffins · Tacter</span>
   </div>
 </main>
 
+<!-- Set 17 국내 공식 데이터 (도감용, CSV에서 자동 생성) -->
+<script src="tftdata.js"></script>
 <script>
 /* =============================================================
    ★★★ DATA — 여기만 수정하면 앱 내용이 바뀝니다 ★★★
@@ -492,38 +495,72 @@ function renderDecks(q=""){
     </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
 }
 
-// 아이템 렌더
-function renderItems(q=""){
-  q=q.trim().toLowerCase();
-  $('#compLegend').innerHTML = COMPONENTS.map(c=>`<span class="comp">${esc(c)}</span>`).join('');
-  const list = COMBOS.filter(c=> !q || (c.result+c.recipe).toLowerCase().includes(q));
-  $('#comboGrid').innerHTML = list.length ? list.map(c=>`
-    <div class="combo">
-      <div class="result">${esc(c.result)}</div>
-      <div class="recipe">${esc(c.recipe)}</div>
-    </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
-}
+/* ===== 도감 (챔피언·특성·아이템·증강) — 국내 공식 데이터 ===== */
+const DB = window.TFTDB || {champions:[],traits:[],items:[],augments:[]};
+const TIER_KO = {prismatic:'프리즘', gold:'골드', silver:'실버'};
+let dogamSub = 'champions';
+let dogamFilter = '';
 
-// 증강/특성 렌더
-function renderAugs(q=""){
-  q=q.trim().toLowerCase();
-  const aList=AUGMENTS.filter(a=> !q || (a.name+a.desc).toLowerCase().includes(q));
-  $('#augList').innerHTML = aList.length ? aList.map(a=>`
-    <div class="aug ${a.type}">
-      <span class="aug-name">${esc(a.name)}</span><span class="aug-tag ${a.type}">${a.type==='prismatic'?'프리즘':a.type==='gold'?'골드':'실버'}</span>
-      <div class="aug-desc">${esc(a.desc)}</div>
-    </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
-  const tList=TRAITS.filter(t=> !q || (t.name+t.desc).toLowerCase().includes(q));
-  $('#traitList').innerHTML = tList.map(t=>`
-    <div class="aug">
-      <span class="aug-name">${esc(t.name)}</span> <span class="chip" style="font-size:11px">${esc(t.breaks)}</span>
-      <div class="aug-desc">${esc(t.desc)}</div>
-    </div>`).join('');
+function dogamFilterOptions(){
+  if(dogamSub==='champions') return [['','전체'],['1','1코'],['2','2코'],['3','3코'],['4','4코'],['5','5코']];
+  if(dogamSub==='traits')    return [['','전체'],['오리진','오리진'],['클래스','클래스']];
+  if(dogamSub==='augments')  return [['','전체'],['prismatic','프리즘'],['gold','골드'],['silver','실버']];
+  if(dogamSub==='items')     return [['조합표','조합표'],['완성 아이템','완성'],['유물 아이템','유물'],['찬란한(강화) 아이템','찬란'],['상징(엠블럼)','상징'],['초능력 아이템','초능력'],['특수/영웅 아이템','특수'],['지휘 모드(소나)','소나'],['기본(조합) 아이템','기본']];
+  return [];
 }
+function renderDogamFilters(){
+  $('#dogamFilters').innerHTML = dogamFilterOptions().map(([v,l])=>
+    `<span class="pick ${String(dogamFilter)===String(v)?'on':''}" data-f="${esc(v)}">${esc(l)}</span>`).join('');
+}
+function comboCards(q){
+  const legend = `<div class="label">기본 아이템 (조합 재료)</div><div class="comp-legend">${COMPONENTS.map(c=>`<span class="comp">${esc(c)}</span>`).join('')}</div>`;
+  const list = COMBOS.filter(c=> !q || (c.result+c.recipe).toLowerCase().includes(q));
+  return legend + `<div class="combo-grid">`+ (list.length? list.map(c=>`<div class="combo"><div class="result">${esc(c.result)}</div><div class="recipe">${esc(c.recipe)}</div></div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`) + `</div>`;
+}
+function renderDogam(){
+  const q=($('#dogamSearch').value||'').trim().toLowerCase();
+  const R=$('#dogamResult'); R.classList.remove('grid');
+  let html='', count=0;
+  if(dogamSub==='champions'){
+    R.classList.add('grid');
+    let list=DB.champions.filter(c=> (!dogamFilter || c.cost===+dogamFilter) && (!q || (c.n+c.e+c.traits+c.items).toLowerCase().includes(q)))
+      .sort((a,b)=>a.cost-b.cost || a.n.localeCompare(b.n,'ko'));
+    count=list.length;
+    html=list.map(c=>`<div class="dcard"><div class="dh"><span class="cost c${c.cost}">${c.cost}코</span><span class="nm">${esc(c.n)}</span><span class="en">${esc(c.e)}</span></div><div class="kv"><b>특성</b> ${esc(c.traits||'-')}</div>${c.items?`<div class="kv"><b>삼신기</b> ${esc(c.items)}</div>`:''}</div>`).join('');
+  } else if(dogamSub==='traits'){
+    R.classList.add('grid');
+    let list=DB.traits.filter(t=> (!dogamFilter || t.type===dogamFilter) && (!q || (t.n+t.e+t.desc).toLowerCase().includes(q)));
+    count=list.length;
+    html=list.map(t=>`<div class="dcard"><div class="dh"><span class="nm">${esc(t.n)}</span><span class="ttype">${esc(t.type)}</span><span class="en">${esc(t.e)}</span></div>${t.br?`<div class="kv"><b>구간</b> ${esc(t.br)}</div>`:''}<div class="ds">${esc(t.desc||'')}</div></div>`).join('');
+  } else if(dogamSub==='augments'){
+    R.classList.add('grid');
+    const ord={prismatic:0,gold:1,silver:2};
+    let list=DB.augments.filter(a=> (!dogamFilter || a.tier===dogamFilter) && (!q || (a.n+a.desc).toLowerCase().includes(q)))
+      .sort((a,b)=>ord[a.tier]-ord[b.tier] || a.n.localeCompare(b.n,'ko'));
+    count=list.length;
+    html=list.map(a=>`<div class="aug ${a.tier}"><span class="aug-name">${esc(a.n)}</span><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span>${a.when?`<span class="seg" style="margin-left:6px">${esc(a.when)}</span>`:''}<div class="aug-desc">${esc(a.desc||'')}</div></div>`).join('');
+  } else if(dogamSub==='items'){
+    if(dogamFilter==='조합표'){ $('#dogamCount').textContent=''; R.innerHTML=comboCards(q); return; }
+    R.classList.add('grid');
+    let list=DB.items.filter(i=> i.type===dogamFilter && (!q || (i.n+i.e+i.desc).toLowerCase().includes(q)));
+    count=list.length;
+    html=list.map(i=>`<div class="dcard"><div class="dh"><span class="nm">${esc(i.n)}</span>${i.e?`<span class="en">${esc(i.e)}</span>`:''}</div><div class="ds">${esc(i.desc||'')}</div></div>`).join('');
+  }
+  $('#dogamCount').textContent = `${count}개`;
+  R.innerHTML = html || `<div class="empty">검색 결과가 없어요</div>`;
+}
+function setDogamSub(sub){
+  dogamSub=sub;
+  dogamFilter = sub==='items' ? '완성 아이템' : '';
+  document.querySelectorAll('#dogamTabs .seg-tab').forEach(t=>t.classList.toggle('on', t.dataset.sub===sub));
+  renderDogamFilters(); renderDogam();
+}
+$('#dogamTabs').onclick = e=>{ const el=e.target.closest('.seg-tab'); if(!el) return; setDogamSub(el.dataset.sub); };
+$('#dogamFilters').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  dogamFilter = el.dataset.f; renderDogamFilters(); renderDogam(); };
+$('#dogamSearch').oninput = ()=>renderDogam();
 
 $('#deckSearch').oninput = e=>renderDecks(e.target.value);
-$('#itemSearch').oninput = e=>renderItems(e.target.value);
-$('#augSearch').oninput  = e=>renderAugs(e.target.value);
 
 /* ===== 덱 추천 로직 ===== */
 const COMPS8 = COMPONENTS.slice(0,8);                 // 기본 아이템 8종 (상징 제외)
@@ -763,7 +800,7 @@ $('#logBtn').onclick = ()=>{ const deck=$('#logDeck').value; if(!deck||!curPlace
   curPlace=null; $('#logDeck').value=''; renderAnalysisInputs(); renderAnalysis(); };
 $('#analysisReset').onclick = ()=>{ if(confirm('기록을 모두 삭제할까요?')){ games=[]; saveGames(); renderAnalysis(); } };
 
-renderDecks(); renderItems(); renderAugs(); renderPickers(); renderReco();
+renderDecks(); renderPickers(); renderReco(); setDogamSub('champions');
 renderAnalysisInputs(); renderPref(); renderAnalysis();
 </script>
 </body>
