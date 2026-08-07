@@ -1,0 +1,1162 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>TFT 도우미 — 추천덱 · 아이템 · 증강</title>
+
+<!-- iOS 홈 화면 앱처럼 동작하게 하는 설정 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TFT 도우미" />
+<meta name="theme-color" content="#0b0e13" />
+<!-- 홈 화면 아이콘 (이모지 기반 SVG) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' rx='40' fill='%23111827'/%3E%3Ctext x='50%25' y='54%25' font-size='96' text-anchor='middle' dominant-baseline='central'%3E%E2%99%9F%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+
+<style>
+  /* =========================================================
+     ★ 여기 색/폰트만 바꾸면 앱 전체 테마가 바뀝니다
+     ========================================================= */
+  :root{
+    --bg:#0b0e13; --bg2:#131823; --bg3:#1b2231;
+    --fg:#f2f4f8; --fg2:#aab2c2; --fg3:#6b7484;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --gold:#f0b429; --blue:#3b82f6; --purple:#a855f7; --green:#22c55e; --red:#ef4444; --silver:#94a3b8;
+    --radius:16px;
+    --font: -apple-system, "Pretendard", system-ui, "Apple SD Gothic Neo", sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--font);}
+  body{
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    -webkit-font-smoothing:antialiased; overscroll-behavior-y:none;
+  }
+  a{color:inherit;}
+
+  /* 상단 헤더 */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, rgba(11,14,19,.98), rgba(11,14,19,.86));
+    backdrop-filter:blur(12px); border-bottom:1px solid var(--line);
+    padding:14px 16px 10px;
+  }
+  .title{display:flex; align-items:center; gap:8px; font-weight:800; font-size:19px; letter-spacing:-.02em;}
+  .title .dot{color:var(--gold);}
+  .patch{margin-top:2px; font-size:12px; color:var(--fg3);}
+
+  /* 탭 바 */
+  .tabs{display:flex; gap:6px; margin-top:12px;}
+  .tab{
+    flex:1; text-align:center; padding:9px 4px; border-radius:12px;
+    font-size:14px; font-weight:700; color:var(--fg2);
+    background:var(--bg2); border:1px solid var(--line); cursor:pointer;
+    transition:.15s;
+  }
+  .tab.active{background:var(--gold); color:#1a1204; border-color:transparent;}
+
+  main{padding:14px 16px 40px; max-width:720px; margin:0 auto;}
+  .view{display:none;} .view.active{display:block;}
+  .col-title{display:none;} /* 아이폰에선 탭이 제목 역할 → 숨김 */
+
+  /* =========================================================
+     ★ 아이패드/넓은 화면 (가로 900px 이상): 넉넉한 폭 + 다단 목록
+     ========================================================= */
+  @media (min-width:900px){
+    main{max-width:1180px; padding:20px 22px 48px;}
+    #deckList{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;}
+    #dogamResult.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; align-items:start;}
+    /* 덱추천: 입력 | 결과 2단 */
+    .reco-grid{display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start;
+      grid-template-areas:"uin uout" "oin rout";}
+    #recoUnitIn{grid-area:uin;} #unitResult{grid-area:uout;}
+    #recoOtherIn{grid-area:oin;} #recoOut{grid-area:rout;}
+    .reco-grid .divider{display:none;}
+    /* 분석: 입력 | 결과 2단 */
+    #view-analysis .ana-grid{display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start;}
+  }
+  .why{font-size:12px; color:var(--gold); margin-top:3px; line-height:1.4;}
+  .cut-chip{border-color:rgba(239,68,68,.45)!important; color:#f3a2a2!important;}
+
+  /* 검색 */
+  .search{
+    width:100%; padding:11px 14px; margin-bottom:14px;
+    background:var(--bg2); border:1px solid var(--line); border-radius:12px;
+    color:var(--fg); font-size:15px;
+  }
+  .search::placeholder{color:var(--fg3);}
+
+  /* 카드 공통 */
+  .card{
+    background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-bottom:12px;
+  }
+  .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .deck-name{font-size:17px; font-weight:800; letter-spacing:-.02em;}
+  .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+
+  /* 티어 배지 */
+  .tier{font-weight:900; font-size:12px; padding:3px 9px; border-radius:8px; letter-spacing:.02em;}
+  .tier.S{background:rgba(240,180,41,.16); color:var(--gold);}
+  .tier.A{background:rgba(168,85,247,.16); color:var(--purple);}
+  .tier.B{background:rgba(59,130,246,.16); color:var(--blue);}
+  .tier.C{background:rgba(148,163,184,.16); color:var(--silver);}
+
+  .meta{font-size:13px; color:var(--fg3); margin-top:6px;}
+  .label{font-size:11px; color:var(--fg3); text-transform:uppercase; letter-spacing:.08em; margin:12px 0 6px; font-weight:700;}
+
+  /* 캐리 유닛 + 아이템 */
+  .carry{background:var(--bg3); border-radius:12px; padding:10px 12px; margin-top:8px;}
+  .carry-name{font-weight:700; font-size:14px;}
+  .items{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .item{font-size:12px; padding:4px 8px; border-radius:7px; background:rgba(240,180,41,.12); color:var(--gold); font-weight:600;}
+
+  /* 조합 유닛 칩 */
+  .chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{font-size:12.5px; padding:5px 9px; border-radius:8px; background:var(--bg3); color:var(--fg2); border:1px solid var(--line);}
+  .chip.star{color:var(--gold); border-color:rgba(240,180,41,.3);}
+
+  /* 아이템 조합표 */
+  .combo-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:8px;}
+  .combo{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:11px 12px;}
+  .combo .recipe{font-size:12px; color:var(--fg3);}
+  .combo .result{font-size:14px; font-weight:700; margin-top:3px;}
+  .comp-legend{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .comp{font-size:12px; padding:5px 9px; border-radius:8px; background:var(--bg3); border:1px solid var(--line);}
+
+  /* 증강/특성 */
+  .aug{border-left:3px solid var(--line2); padding:10px 12px; background:var(--bg2); border-radius:10px; margin-bottom:9px;}
+  .aug.prismatic{border-left-color:var(--purple);}
+  .aug.gold{border-left-color:var(--gold);}
+  .aug.silver{border-left-color:var(--silver);}
+  .aug-name{font-weight:700; font-size:14.5px;}
+  .aug-tag{font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:6px; vertical-align:middle;}
+  .aug-tag.prismatic{background:rgba(168,85,247,.16); color:var(--purple);}
+  .aug-tag.gold{background:rgba(240,180,41,.16); color:var(--gold);}
+  .aug-tag.silver{background:rgba(148,163,184,.16); color:var(--silver);}
+  .aug-desc{font-size:13px; color:var(--fg2); margin-top:4px; line-height:1.5;}
+
+  .note{font-size:12px; color:var(--fg3); text-align:center; margin-top:22px; line-height:1.6;}
+  .empty{color:var(--fg3); text-align:center; padding:30px 0;}
+
+  /* 덱 추천 */
+  .reco-help{font-size:13.5px; color:var(--fg2); line-height:1.55; margin:2px 0 6px;}
+  .picker{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:4px;}
+  .pick{
+    font-size:13px; padding:8px 11px; border-radius:10px; cursor:pointer; user-select:none;
+    background:var(--bg2); border:1px solid var(--line); color:var(--fg2); transition:.12s;
+  }
+  .pick.on{background:var(--gold); color:#1a1204; border-color:transparent; font-weight:700;}
+  .reco-hint{font-size:12.5px; color:var(--fg3); line-height:1.5; margin-bottom:10px;}
+  .reco-card{background:var(--bg2); border:1px solid var(--line); border-radius:14px; padding:13px; margin-bottom:10px;}
+  .reco-card.top{border-color:rgba(240,180,41,.55); background:linear-gradient(180deg, rgba(240,180,41,.06), var(--bg2));}
+  .match-bar{height:7px; border-radius:4px; background:var(--bg3); overflow:hidden; margin:8px 0 9px;}
+  .match-fill{height:100%; background:linear-gradient(90deg, var(--gold), var(--green));}
+  .reco-items{display:flex; flex-wrap:wrap; gap:5px;}
+  .reco-item{font-size:12px; padding:4px 8px; border-radius:7px;}
+  .reco-item.ready{background:rgba(34,197,94,.15); color:var(--green);}
+  .reco-item.partial{background:rgba(240,180,41,.13); color:var(--gold);}
+  .reco-item.miss{background:var(--bg3); color:var(--fg3);}
+  .sub-hint{font-weight:400; text-transform:none; letter-spacing:0; color:var(--fg3); font-size:11px;}
+  .advice{margin-top:9px; padding:9px 11px; background:var(--bg3); border-radius:10px; font-size:12.5px; color:var(--fg2); line-height:1.55;}
+  .advice b{color:var(--fg);}
+  .aug-pick{margin-top:8px;}
+  .aug-rec{display:flex; align-items:center; gap:7px; font-size:12.5px; padding:5px 0; border-top:1px solid var(--line);}
+  .aug-rec:first-child{border-top:none;}
+  .aug-rec .rank{font-weight:800; color:var(--gold); width:16px; text-align:center;}
+  .aug-rec .best{margin-left:auto; font-size:10.5px; font-weight:800; color:var(--green);}
+
+  /* 내 분석 & 코칭 */
+  .logbtn{width:100%; margin-top:10px; padding:12px; border-radius:12px; border:none;
+    background:var(--gold); color:#1a1204; font-weight:800; font-size:15px; cursor:pointer;}
+  .logbtn:disabled{opacity:.45; cursor:default;}
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:4px 0 12px;}
+  .stat{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:11px 6px; text-align:center;}
+  .stat .v{font-size:20px; font-weight:800; letter-spacing:-.02em;}
+  .stat .k{font-size:10px; color:var(--fg3); margin-top:3px;}
+  .dtable{width:100%; font-size:13px; border-collapse:collapse; margin-bottom:4px;}
+  .dtable th, .dtable td{padding:6px 4px; border-bottom:1px solid var(--line); text-align:left;}
+  .dtable th{color:var(--fg3); font-weight:600; font-size:11px;}
+  .dtable td.num, .dtable th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .tip{background:var(--bg2); border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:10px; padding:10px 12px; margin-bottom:8px;}
+  .tip .tt{font-weight:700; font-size:13.5px;}
+  .tip .td2{font-size:12.5px; color:var(--fg2); margin-top:3px; line-height:1.5;}
+  .seg{display:inline-block; font-size:11px; color:var(--fg3); margin-top:6px;}
+
+  /* 도감 */
+  .seg-tabs{display:flex; gap:6px; margin-bottom:12px;}
+  .seg-tab{flex:1; text-align:center; padding:8px 4px; border-radius:10px; font-size:13.5px;
+    font-weight:700; color:var(--fg2); background:var(--bg2); border:1px solid var(--line); cursor:pointer;}
+  .seg-tab.on{background:var(--bg3); color:var(--fg); border-color:var(--line2);}
+  #dogamCount{margin:0 0 8px;}
+  .dcard{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:11px 12px; margin-bottom:8px;}
+  .dcard .dh{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  .dcard .nm{font-weight:800; font-size:14.5px; letter-spacing:-.01em;}
+  .dcard .en{font-size:11px; color:var(--fg3);}
+  .dcard .ds{font-size:12.5px; color:var(--fg2); margin-top:5px; line-height:1.5;}
+  .dcard .kv{font-size:12px; color:var(--fg3); margin-top:5px;}
+  .dcard .kv b{color:var(--fg2); font-weight:600;}
+  .cost{font-size:11px; font-weight:900; padding:2px 8px; border-radius:7px;}
+  .cost.c1{background:rgba(148,163,184,.18); color:#b7c0cf;}
+  .cost.c2{background:rgba(34,197,94,.16); color:var(--green);}
+  .cost.c3{background:rgba(59,130,246,.16); color:var(--blue);}
+  .cost.c4{background:rgba(168,85,247,.16); color:var(--purple);}
+  .cost.c5{background:rgba(240,180,41,.16); color:var(--gold);}
+  .ttype{font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; background:var(--bg3); color:var(--fg3);}
+  .divider{border:none; border-top:1px solid var(--line); margin:18px 0;}
+  .cost{display:inline-block; text-align:center; min-width:16px;}
+  /* 아이템 스텝퍼 / 골드 슬라이더 */
+  .stepper{display:inline-flex; align-items:center; gap:8px; background:var(--bg2); border:1px solid var(--line);
+    border-radius:12px; padding:5px 7px 5px 11px; margin:0 6px 6px 0;}
+  .stepper.on{border-color:rgba(240,180,41,.4);}
+  .stepper .sname{font-size:12.5px; color:var(--fg2);}
+  .stepper .scount{min-width:15px; text-align:center; font-weight:800; font-variant-numeric:tabular-nums;}
+  .sbtn{width:26px; height:26px; border-radius:8px; border:1px solid var(--line2); background:var(--bg3);
+    color:var(--fg); font-size:17px; font-weight:800; line-height:1; cursor:pointer; padding:0;}
+  .sbtn:active{background:var(--gold); color:#1a1204;}
+  .gold-range{width:100%; accent-color:var(--gold); height:30px; margin:2px 0 8px;}
+  /* 덱 가이드 · 배치도 */
+  .dguide{margin-top:10px; border-top:1px solid var(--line); padding-top:8px;}
+  .dguide summary{font-size:13px; font-weight:700; color:var(--gold); cursor:pointer; list-style:none;}
+  .dguide summary::-webkit-details-marker{display:none;}
+  .dguide summary::before{content:"▸ "; }
+  .dguide[open] summary::before{content:"▾ "; }
+  .gstep{display:flex; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);}
+  .gstage{flex-shrink:0; font-size:11px; font-weight:800; color:var(--gold); min-width:54px;}
+  .gtext{font-size:12.5px; color:var(--fg2); line-height:1.45;}
+  .board-diagram{margin:6px 0 2px; overflow-x:auto;}
+  .brow{display:flex; gap:3px; margin-bottom:3px;}
+  .brow.odd{margin-left:20px;}
+  .hex{width:40px; height:36px; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; font-size:8.5px; line-height:1.08; padding:2px; background:var(--bg3); border:1px solid var(--line); color:var(--fg3); flex:none;}
+  .hex.empty{background:transparent; border-style:dashed; opacity:.3;}
+  .hex.carry{background:rgba(240,180,41,.2); border-color:var(--gold); color:var(--gold); font-weight:800;}
+  .hex.back{background:rgba(168,85,247,.16); border-color:rgba(168,85,247,.35); color:#d8b6f5;}
+  .hex.mid{background:var(--bg3); color:var(--fg2);}
+  .hex.tank{background:rgba(59,130,246,.16); border-color:rgba(59,130,246,.35); color:#9dc0f5;}
+  .board-legend{font-size:10.5px; color:var(--fg3); margin-top:3px;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title"><span class="dot">♟️</span> TFT 도우미</div>
+  <div class="patch" id="patchInfo">예시 데이터 · 최신 패치에 맞게 수정하세요</div>
+  <div class="tabs">
+    <div class="tab active" data-view="decks">추천덱</div>
+    <div class="tab" data-view="reco">덱추천</div>
+    <div class="tab" data-view="dogam">도감</div>
+    <div class="tab" data-view="analysis">분석</div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 덱 추천 (내 재료 기반) ============ -->
+  <section class="view" id="view-reco">
+    <div class="col-title">🧭 덱 추천</div>
+    <p class="reco-help">지금 <b>필드 유닛</b>을 입력하면 도감으로 <b>특성 현황·추가할 유닛·목표 덱</b>을 실시간 분석해요. 아래에서 <b>기본 아이템·레벨·증강</b>도 함께 넣으면 더 정확해져요.</p>
+
+    <div class="reco-grid">
+      <div id="recoUnitIn">
+        <div class="label">🔴 지금 필드 유닛 <span class="sub-hint">— 코스트 골라 탭하면 추가/제거</span></div>
+        <div class="picker" id="unitCostTabs"></div>
+        <div class="picker" id="unitGrid"></div>
+        <input class="search" id="unitSearch" placeholder="또는 이름으로 검색…" style="margin:8px 0 6px;">
+        <div class="picker" id="unitOptions"></div>
+        <div class="label" style="margin-top:8px;">선택한 유닛 <span id="unitSelCount" class="sub-hint"></span></div>
+        <div class="picker" id="unitSelected"></div>
+      </div>
+
+      <div id="unitResult"></div>
+
+      <div id="recoOtherIn">
+        <hr class="divider">
+        <div class="label">가진 기본 아이템 <span class="sub-hint">— − / + 로 개수 조절 (3개 이상 OK)</span></div>
+        <div id="compSteppers"></div>
+
+        <div class="label" style="margin-top:12px;">현재 레벨 (선택)</div>
+        <div class="picker" id="lvlPicker"></div>
+
+        <div class="label" style="margin-top:12px;">보유 골드 <span id="goldVal" class="sub-hint">— 미설정</span></div>
+        <input type="range" id="goldRange" min="0" max="100" step="1" value="0" class="gold-range">
+        <div class="picker" id="goldPresets"></div>
+
+        <div class="label" style="margin-top:12px;">제안된 증강 <span class="sub-hint">— 뜬 증강을 검색해 추가 (최대 3개)</span></div>
+        <input class="search" id="augSearch2" placeholder="증강 검색 (예: 침략자 제드)" style="margin-bottom:6px;">
+        <div class="picker" id="augOptions"></div>
+        <div class="picker" id="augSelected"></div>
+      </div>
+
+      <div id="recoOut">
+        <div class="row" style="margin:0 0 4px; justify-content:space-between;">
+          <div class="label" style="margin:0;">추천 결과</div>
+          <span id="recoReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 초기화</span>
+        </div>
+        <div id="recoResult"></div>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ 추천 덱 ============ -->
+  <section class="view active" id="view-decks">
+    <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 벡스, 리롤)" />
+    <div id="deckList"></div>
+  </section>
+
+  <!-- ============ 도감 (챔피언·특성·아이템·증강) ============ -->
+  <section class="view" id="view-dogam">
+    <div class="seg-tabs" id="dogamTabs">
+      <span class="seg-tab on" data-sub="champions">챔피언</span>
+      <span class="seg-tab" data-sub="traits">특성</span>
+      <span class="seg-tab" data-sub="items">아이템</span>
+      <span class="seg-tab" data-sub="augments">증강</span>
+    </div>
+    <input class="search" id="dogamSearch" placeholder="이름·효과 검색" />
+    <div class="picker" id="dogamFilters"></div>
+    <div id="dogamCount" class="seg"></div>
+    <div id="dogamResult"></div>
+  </section>
+
+  <!-- ============ 내 분석 & 코칭 ============ -->
+  <section class="view" id="view-analysis">
+    <div class="col-title">📈 내 분석 & 코칭</div>
+    <p class="reco-help">내 <b>선호 운영</b>을 고르고, 게임이 끝날 때마다 <b>덱·등수</b>를 기록하면 성향·강점·약점을 분석해 <b>맞춤 코칭</b>을 줘요. (기록은 이 기기에 저장돼요)</p>
+
+    <div class="label">내 선호 운영 — 맞는 덱 추천</div>
+    <div class="picker" id="prefPicker"></div>
+    <div id="prefResult"></div>
+
+    <div class="label" style="margin-top:16px;">게임 기록 추가</div>
+    <select id="logDeck" class="search" style="margin-bottom:6px;"></select>
+    <div class="label" style="margin:2px 0 5px;">최종 등수</div>
+    <div class="picker" id="placePicker"></div>
+    <button id="logBtn" class="logbtn" disabled>＋ 이 판 기록하기</button>
+
+    <div class="row" style="margin:16px 0 6px; justify-content:space-between;">
+      <div class="label" style="margin:0;">내 통계 &amp; 코칭</div>
+      <span id="analysisReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 기록 삭제</span>
+    </div>
+    <div id="analysisResult"></div>
+  </section>
+
+  <div class="note">
+    📌 <b>Set 17: Space Gods · 패치 17.8</b> 기준 (2026-08-07)<br>
+    <b>도감</b>(챔피언·특성·아이템·증강)은 국내 공식 데이터 <code>tftdata.js</code>에서 불러옵니다.<br>
+    <b>추천덱</b>은 큐레이션이라 파일 아래 <b>DATA</b>에서 수정, 도감은 <code>tftdata.js</code>를 교체하세요.<br>
+    <span style="opacity:.7">추천덱 참고: Mobalytics · METAsrc · BunnyMuffins · Tacter</span>
+  </div>
+</main>
+
+<!-- Set 17 국내 공식 데이터 (도감용, CSV에서 자동 생성) -->
+<script>
+/* Set 17 · 국내 공식 데이터 (업로드 CSV에서 자동 생성) */
+window.TFTDB={"champions":[{"n":"아트록스","e":"Aatrox","cost":1,"traits":"N.O.V.A.(N.O.V.A.), 요새(Bastion)","items":"스테락의 도전, 거인의 결의, 피바라기"},{"n":"브라이어","e":"Briar","cost":1,"traits":"동물특공대(Anima), 태고족(Primordian), 불한당(Rogue)","items":"거인의 결의, 스테락의 도전, 피바라기"},{"n":"케이틀린","e":"Caitlyn","cost":1,"traits":"N.O.V.A.(N.O.V.A.), 운명술사(Fateweaver)","items":"타격대의 철퇴, 무한의 대검, 거인 학살자"},{"n":"초가스","e":"Cho'Gath","cost":1,"traits":"암흑의 별(Dark Star), 싸움꾼(Brawler)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"이즈리얼","e":"Ezreal","cost":1,"traits":"시간 균열자(Timebreaker), 저격수(Sniper)","items":"무한의 대검, 쇼진의 창, 거인 학살자"},{"n":"레오나","e":"Leona","cost":1,"traits":"중재자(Arbiter), 선봉대(Vanguard)","items":"워모그의 갑옷, 스테락의 도전, 가고일 돌갑옷"},{"n":"리산드라","e":"Lissandra","cost":1,"traits":"암흑의 별(Dark Star), 길잡이(Shepherd), 복제자(Replicator)","items":"쇼진의 창, 내셔의 이빨, 타격대의 철퇴"},{"n":"나서스","e":"Nasus","cost":1,"traits":"우주 그루브(Space Groove), 선봉대(Vanguard)","items":"구인수의 격노검, 거인의 결의, 피바라기"},{"n":"뽀삐","e":"Poppy","cost":1,"traits":"정령족(Meeple), 요새(Bastion)","items":"워모그의 갑옷, 가고일 돌갑옷, 용의 발톱"},{"n":"렉사이","e":"Rek'Sai","cost":1,"traits":"태고족(Primordian), 싸움꾼(Brawler)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"탈론","e":"Talon","cost":1,"traits":"별돌보미(Stargazer), 불한당(Rogue)","items":"쇼진의 창, 마법공학 총검, 밤의 끝자락"},{"n":"티모","e":"Teemo","cost":1,"traits":"우주 그루브(Space Groove), 길잡이(Shepherd)","items":"마법공학 총검, 거인 학살자, 구인수의 격노검"},{"n":"트위스티드 페이트","e":"Twisted Fate","cost":1,"traits":"별돌보미(Stargazer), 운명술사(Fateweaver)","items":"내셔의 이빨, 쇼진의 창, 타격대의 철퇴"},{"n":"베이가","e":"Veigar","cost":1,"traits":"정령족(Meeple), 복제자(Replicator)","items":"쇼진의 창, 내셔의 이빨, 공허의 지팡이"},{"n":"아칼리","e":"Akali","cost":2,"traits":"N.O.V.A.(N.O.V.A.), 습격자(Marauder)","items":"마법공학 총검, 타격대의 철퇴, 무한의 대검"},{"n":"벨베스","e":"Bel'Veth","cost":2,"traits":"태고족(Primordian), 도전자(Challenger), 습격자(Marauder)","items":"거인 학살자, 크라켄의 분노, 타격대의 철퇴"},{"n":"나르","e":"Gnar","cost":2,"traits":"정령족(Meeple), 싸움꾼(Brawler), 저격수(Sniper)","items":"구인수의 격노검, 크라켄의 분노, 무한의 대검"},{"n":"그라가스","e":"Gragas","cost":2,"traits":"초능력(Psionic), 싸움꾼(Brawler)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"그웬","e":"Gwen","cost":2,"traits":"우주 그루브(Space Groove), 불한당(Rogue)","items":"마법공학 총검, 거인 학살자, 보석 건틀릿"},{"n":"잭스","e":"Jax","cost":2,"traits":"별돌보미(Stargazer), 요새(Bastion)","items":"거인의 결의, 워모그의 갑옷, 피바라기"},{"n":"징크스","e":"Jinx","cost":2,"traits":"동물특공대(Anima), 도전자(Challenger)","items":"최후의 속삭임, 붉은 덩굴정령, 타격대의 철퇴"},{"n":"밉시","e":"Meepsie","cost":2,"traits":"정령족(Meeple), 길잡이(Shepherd), 여행자(Voyager)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"밀리오","e":"Milio","cost":2,"traits":"시간 균열자(Timebreaker), 운명술사(Fateweaver)","items":"타격대의 철퇴, 마법공학 총검, 쇼진의 창"},{"n":"모데카이저","e":"Mordekaiser","cost":2,"traits":"암흑의 별(Dark Star), 전달자(Conduit), 선봉대(Vanguard)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"판테온","e":"Pantheon","cost":2,"traits":"시간 균열자(Timebreaker), 싸움꾼(Brawler), 복제자(Replicator)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"파이크","e":"Pyke","cost":2,"traits":"초능력(Psionic), 여행자(Voyager)","items":"밤의 끝자락, 무한의 대검, 타격대의 철퇴"},{"n":"조이","e":"Zoe","cost":2,"traits":"중재자(Arbiter), 전달자(Conduit)","items":"공허의 지팡이, 타격대의 철퇴, 마법공학 총검"},{"n":"오로라","e":"Aurora","cost":3,"traits":"동물특공대(Anima), 여행자(Voyager)","items":"쇼진의 창, 내셔의 이빨, 공허의 지팡이"},{"n":"다이애나","e":"Diana","cost":3,"traits":"중재자(Arbiter), 도전자(Challenger)","items":"마법공학 총검, 거인의 결의, 구인수의 격노검"},{"n":"피즈","e":"Fizz","cost":3,"traits":"정령족(Meeple), 불한당(Rogue)","items":"마법공학 총검, 거인 학살자, 보석 건틀릿"},{"n":"일라오이","e":"Illaoi","cost":3,"traits":"동물특공대(Anima), 선봉대(Vanguard), 길잡이(Shepherd)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"카이사","e":"Kai'Sa","cost":3,"traits":"암흑의 별(Dark Star), 불한당(Rogue)","items":"쇼진의 창, 거인 학살자, 타격대의 철퇴"},{"n":"룰루","e":"Lulu","cost":3,"traits":"별돌보미(Stargazer), 복제자(Replicator)","items":"쇼진의 창, 내셔의 이빨, 공허의 지팡이"},{"n":"마오카이","e":"Maokai","cost":3,"traits":"N.O.V.A.(N.O.V.A.), 싸움꾼(Brawler)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"미스 포츈","e":"Miss Fortune","cost":3,"traits":"기동총격여신(Gun Goddess), 특성 선택(Choose Trait)","items":"무한의 대검, 거인 학살자, 타격대의 철퇴"},{"n":"오른","e":"Ornn","cost":3,"traits":"우주 그루브(Space Groove), 요새(Bastion)","items":"워모그의 갑옷, 가고일 돌갑옷, 용의 발톱"},{"n":"라스트","e":"Rhaast","cost":3,"traits":"구원자(Redeemer)","items":"워모그의 갑옷, 스테락의 도전, 피바라기"},{"n":"사미라","e":"Samira","cost":3,"traits":"우주 그루브(Space Groove), 저격수(Sniper)","items":"쇼진의 창, 최후의 속삭임, 무한의 대검"},{"n":"우르곳","e":"Urgot","cost":3,"traits":"메카(Mecha), 싸움꾼(Brawler), 습격자(Marauder)","items":"타격대의 철퇴, 거인 학살자, 스테락의 도전"},{"n":"빅토르","e":"Viktor","cost":3,"traits":"초능력(Psionic), 전달자(Conduit)","items":"공허의 지팡이, 거인 학살자, 붉은 덩굴정령"},{"n":"아우렐리온 솔","e":"Aurelion Sol","cost":4,"traits":"메카(Mecha), 전달자(Conduit)","items":"거인 학살자, 마법공학 총검, 타격대의 철퇴"},{"n":"코르키","e":"Corki","cost":4,"traits":"정령족(Meeple), 운명술사(Fateweaver)","items":"거인 학살자, 타격대의 철퇴, 쇼진의 창"},{"n":"카르마","e":"Karma","cost":4,"traits":"암흑의 별(Dark Star), 여행자(Voyager)","items":"공허의 지팡이, 쇼진의 창, 붉은 덩굴정령"},{"n":"킨드레드","e":"Kindred","cost":4,"traits":"N.O.V.A.(N.O.V.A.), 도전자(Challenger)","items":"붉은 덩굴정령, 거인 학살자, 크라켄의 분노"},{"n":"르블랑","e":"LeBlanc","cost":4,"traits":"중재자(Arbiter), 길잡이(Shepherd)","items":"구인수의 격노검, 거인 학살자, 마법공학 총검"},{"n":"마스터 이","e":"Master Yi","cost":4,"traits":"초능력(Psionic), 습격자(Marauder)","items":"밤의 끝자락, 거인 학살자, 거인의 결의"},{"n":"모르가나","e":"Morgana","cost":4,"traits":"어둠의 여인(Dark Lady), 전달자(Conduit)","items":"공허의 지팡이, 거인 학살자, 쇼진의 창"},{"n":"나미","e":"Nami","cost":4,"traits":"우주 그루브(Space Groove), 복제자(Replicator)","items":"쇼진의 창, 내셔의 이빨, 붉은 덩굴정령"},{"n":"누누와 윌럼프","e":"Nunu & Willump","cost":4,"traits":"별돌보미(Stargazer), 선봉대(Vanguard)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"람머스","e":"Rammus","cost":4,"traits":"정령족(Meeple), 요새(Bastion)","items":"워모그의 갑옷, 가고일 돌갑옷, 용의 발톱"},{"n":"리븐","e":"Riven","cost":4,"traits":"시간 균열자(Timebreaker), 불한당(Rogue)","items":"도적의 장갑, 스테락의 도전, 피바라기"},{"n":"탐 켄치","e":"Tahm Kench","cost":4,"traits":"예언자(Oracle), 싸움꾼(Brawler)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"마이티 메크","e":"The Mighty Mech","cost":4,"traits":"메카(Mecha), 여행자(Voyager)","items":"워모그의 갑옷, 스테락의 도전, 용의 발톱"},{"n":"자야","e":"Xayah","cost":4,"traits":"별돌보미(Stargazer), 저격수(Sniper)","items":"붉은 덩굴정령, 크라켄의 분노, 최후의 속삭임"},{"n":"정점의 태초생물","e":"Apex Primordian","cost":5,"traits":"태고족(Primordian)","items":"(없음 / 소환 유닛)"},{"n":"바드","e":"Bard","cost":5,"traits":"정령족(Meeple), 전달자(Conduit)","items":"공허의 지팡이, 거인 학살자, 마법공학 총검"},{"n":"블리츠크랭크","e":"Blitzcrank","cost":5,"traits":"파티광(Party Animal), 우주 그루브(Space Groove), 선봉대(Vanguard)","items":"워모그의 갑옷, 공허의 지팡이, 쇼진의 창"},{"n":"피오라","e":"Fiora","cost":5,"traits":"신성 결투가(Divine Duelist), 동물특공대(Anima), 습격자(Marauder)","items":"도적의 장갑, 밤의 끝자락, 스테락의 도전"},{"n":"그레이브즈","e":"Graves","cost":5,"traits":"최신상(Factory New)","items":"거인 학살자, 타격대의 철퇴, 스테락의 도전"},{"n":"진","e":"Jhin","cost":5,"traits":"암흑의 별(Dark Star), 말살자(Eradicator), 저격수(Sniper)","items":"최후의 속삭임, 붉은 덩굴정령, 거인 학살자"},{"n":"쉔","e":"Shen","cost":5,"traits":"보루(Bulwark), 시간 균열자(Timebreaker), 요새(Bastion)","items":"도적의 장갑, 피바라기, 밤의 끝자락"},{"n":"소나","e":"Sona","cost":5,"traits":"지휘관(Commander), 초능력(Psionic), 길잡이(Shepherd)","items":"공허의 지팡이, 쇼진의 창, 붉은 덩굴정령"},{"n":"벡스","e":"Vex","cost":5,"traits":"파멸자(Doomer), 별돌보미(Stargazer)","items":"구인수의 격노검, 붉은 덩굴정령, 마법공학 총검"},{"n":"제드","e":"Zed","cost":5,"traits":"은하계 사냥꾼(Galaxy Hunter)","items":"밤의 끝자락, 쇼진의 창, 피바라기"}],"traits":[{"n":"N.O.V.A.","e":"N.O.V.A.","type":"오리진","br":"구간 2/5","desc":"아군 피해에 파쇄·파열 적용·힘의 고조 부여 / 타격 선택기 획득"},{"n":"구원자","e":"Redeemer","type":"오리진","br":"구간 1","desc":"아군 전체 공격 속도·방어력·마법 저항력 증가"},{"n":"동물특공대","e":"Anima","type":"오리진","br":"구간 3/5","desc":"패배·처치 관여 시 기술 획득해 무기 제작. (3)연구 시작 (5)전투 후 전리품"},{"n":"말살자","e":"Eradicator","type":"오리진","br":"구간 1","desc":"적의 방어력 및 마법 저항력 10% 감소"},{"n":"메카","e":"Mecha","type":"오리진","br":"구간 3/4/6","desc":"메카 유닛 궁극체 변신(2슬롯·특성 2개)·체력 40%. (3)에너지 전지 (4)과충전 (6)정밀 엔지니어링"},{"n":"별돌보미","e":"Stargazer","type":"오리진","br":"구간 3/5/7","desc":"게임마다 다른 별자리, 강화 칸 별돌보미가 추가 효과(별자리별 상이)"},{"n":"보루","e":"Bulwark","type":"오리진","br":"구간 1","desc":"유물 소환, 전투 시작 인접 아군에 보호막·공격 속도 부여"},{"n":"시간 균열자","e":"Timebreaker","type":"오리진","br":"구간 2/3/4","desc":"(2)공속 12% (3)패배 시 무료 새로고침·승리 시 XP 저장 (4)추가 공속 50%"},{"n":"암흑의 별","e":"Dark Star","type":"오리진","br":"구간 2/4/6/9/10","desc":"체력 8% 이하 적 즉사 블랙홀. (6)초과질량 (9)강한 유닛 초과질량 (10)전부 흡수"},{"n":"어둠의 여인","e":"Dark Lady","type":"오리진","br":"구간 1","desc":"아군 내구력 4%(모르가나 어둠 형상 시 10%)"},{"n":"예언자","e":"Oracle","type":"오리진","br":"구간 1","desc":"3라운드마다 탐 켄치가 보상 제공"},{"n":"우주 그루브","e":"Space Groove","type":"오리진","br":"구간 1/3/5/7/10","desc":"그루브 상태 진입 시 공속·최대 체력 재생 증가·공격력·주문력 획득"},{"n":"정령족","e":"Meeple","type":"오리진","br":"구간 3/5/7/10","desc":"정령을 끌어들여 스킬 강화·추가 체력. (10)정령군주 넷 소환"},{"n":"중재자","e":"Arbiter","type":"오리진","br":"구간 2/3","desc":"신성 법률 기록·원인·결과 선택. (3)결과 강화"},{"n":"초능력","e":"Psionic","type":"오리진","br":"구간 2/4","desc":"(2)초능력 아이템 획득 (4)추가 아이템·초능력 유닛 장착 시 추가 효과"},{"n":"최신상","e":"Factory New","type":"오리진","br":"구간 1","desc":"그레이브즈 영구 업그레이드 구매(3회마다 라운드 수 증가)"},{"n":"태고족","e":"Primordian","type":"오리진","br":"구간 2/3","desc":"받은 피해 8% 기여. (2)군체 유충 (3)유충 45% 추가·2단계 태고족"},{"n":"파멸자","e":"Doomer","type":"오리진","br":"구간 1","desc":"전투 시작 적 파멸 표식·공격력·주문력 12% 탈취해 벡스에게 부여"},{"n":"기동총격여신","e":"Gun Goddess","type":"오리진","br":"구간 1","desc":"미스 포츈이 전달자·도전자·복제자 모드 중 선택"},{"n":"별돌보미(산)","e":"Stargazer(Mountain)","type":"오리진","br":"구간 3~11","desc":"별돌보미 '산' 별자리는 최대 11단계까지 확장 효과"},{"n":"길잡이","e":"Shepherd","type":"클래스","br":"구간 3/5/7","desc":"전투 돕는 별의 결속 소환. (3)비아 (5)바이엔 (7)결속 강화"},{"n":"도전자","e":"Challenger","type":"클래스","br":"구간 2/3/4/5","desc":"공속 증가, 대상 사망 시 새 대상 돌진·2.5초 공속 50%"},{"n":"복제자","e":"Replicator","type":"클래스","br":"구간 2/4","desc":"복제자 스킬 감소된 효과로 한 번 더 발동. (2)22% (4)50% 위력"},{"n":"불한당","e":"Rogue","type":"클래스","br":"구간 2/3/4/5","desc":"공격력·주문력 획득, 체력 50% 이하 시 그림자 은신(탱커 우선)"},{"n":"선봉대","e":"Vanguard","type":"클래스","br":"구간 2/4/6","desc":"보호막 유지 중 내구력, 전투 시작·체력 50% 시 최대 체력 비례 보호막"},{"n":"습격자","e":"Marauder","type":"클래스","br":"구간 2/4/6","desc":"아군 흡혈 5%, 습격자 추가 흡혈·공격력·초과 회복 보호막화"},{"n":"신성 결투가","e":"Divine Duelist","type":"클래스","br":"구간 1","desc":"승리 시 입힌 피해 15% 전략가 체력 회복, 피오라 1대1 항상 승리"},{"n":"싸움꾼","e":"Brawler","type":"클래스","br":"구간 2/4/6","desc":"아군 최대 체력 증가(2:+25% 4:+45% 6:+65%)·싸움꾼 추가 능력치"},{"n":"여행자","e":"Voyager","type":"클래스","br":"구간 2/3/4/5/6","desc":"전투 시작 탱커에 15초 보호막·아군 피해 증폭, 여행자 능력치 2배"},{"n":"요새","e":"Bastion","type":"클래스","br":"구간 2/4/6","desc":"방어력·마저 증가(2:15 4:40 6:60), 요새 추가 수치 2배"},{"n":"운명술사","e":"Fateweaver","type":"클래스","br":"구간 2/4","desc":"정밀(치명타)·행운(두 번 시도). (4)치명타 확률·피해 20%"},{"n":"저격수","e":"Sniper","type":"클래스","br":"구간 2/3/4","desc":"피해 증폭, 멀수록 증가(2:18% 3:25% 4:35%, 칸당 추가)"},{"n":"전달자","e":"Conduit","type":"클래스","br":"구간 2/3/4/5","desc":"모든 요소 마나 20% 증가·마나 재생 획득(전달자 능치 추가)"},{"n":"지휘관","e":"Commander","type":"클래스","br":"구간 1","desc":"소나가 라운드마다 무작위 지휘 모드 제공(2회 전투 지속)"},{"n":"파티광","e":"Party Animal","type":"클래스","br":"구간 1","desc":"전투당 1회 부활·최대 체력 15% 회복, 블리츠크랭크 그루브화"}],"items":[{"n":"B.F. 대검","e":"B.F. Sword","type":"기본(조합) 아이템","desc":"공격력 +10%"},{"n":"곡궁","e":"Recurve Bow","type":"기본(조합) 아이템","desc":"공격 속도 +10%"},{"n":"쇠사슬 조끼","e":"Chain Vest","type":"기본(조합) 아이템","desc":"방어력 +20"},{"n":"음전자 망토","e":"Negatron Cloak","type":"기본(조합) 아이템","desc":"마법 저항력 +20"},{"n":"쓸데없이 큰 지팡이","e":"Needlessly Large Rod","type":"기본(조합) 아이템","desc":"주문력 +10"},{"n":"여신의 눈물","e":"Tear of the Goddess","type":"기본(조합) 아이템","desc":"마나 재생 +1"},{"n":"거인의 허리띠","e":"Giant's Belt","type":"기본(조합) 아이템","desc":"체력 +150"},{"n":"연습용 장갑","e":"Sparring Gloves","type":"기본(조합) 아이템","desc":"치명타 확률 +20"},{"n":"뒤집개","e":"Spatula","type":"기본(조합) 아이템","desc":"상징 제작용"},{"n":"프라이펜","e":"Frying Pan","type":"기본(조합) 아이템","desc":"상징 제작용"},{"n":"죽음의 검","e":"Deathblade","type":"완성 아이템","desc":"공격력 대폭 증가(플레이버)"},{"n":"거인 학살자","e":"Giant Slayer","type":"완성 아이템","desc":"탱커 상대 추가 피해 증폭 15%"},{"n":"밤의 끝자락","e":"Edge of Night","type":"완성 아이템","desc":"체력 60%일 때 잠시 대상 지정 불가·해로운 효과 제거·잃은 체력 20% 회복"},{"n":"피바라기","e":"Bloodthirster","type":"완성 아이템","desc":"전투당 1회 체력 40%일 때 최대 체력 25% 보호막(최대 5초)"},{"n":"마법공학 총검","e":"Hextech Gunblade","type":"완성 아이템","desc":"입힌 피해 20%만큼 체력 최저 아군 회복"},{"n":"쇼진의 창","e":"Spear of Shojin","type":"완성 아이템","desc":"기본 공격 시 추가 마나 5"},{"n":"스테락의 도전","e":"Sterak's Gage","type":"완성 아이템","desc":"체력 60%일 때 최대 체력 40% 보호막(4초 소멸)"},{"n":"무한의 대검","e":"Infinity Edge","type":"완성 아이템","desc":"정밀 획득(스킬 치명타 적용)"},{"n":"붉은 덩굴정령","e":"Red Buff","type":"완성 아이템","desc":"5초간 불태우기 1%·상처 33% 적용"},{"n":"공허의 지팡이","e":"Void Staff","type":"완성 아이템","desc":"5초간 파쇄 30% 적용(중복 불가)"},{"n":"최후의 속삭임","e":"Last Whisper","type":"완성 아이템","desc":"3초간 파열 30% 적용(중복 불가)"},{"n":"거인의 결의","e":"Titan's Resolve","type":"완성 아이템","desc":"공격·피격 시 공격력·주문력 2%(최대 25중첩), 최대 시 피해 증폭 10%·군중 제어 면역"},{"n":"덤불 조끼","e":"Bramble Vest","type":"완성 아이템","desc":"최대 체력 6%·기본 공격 피해 5% 감소, 피격 시 인접 적 100 마법 피해"},{"n":"가고일 돌갑옷","e":"Gargoyle Stoneplate","type":"완성 아이템","desc":"공격 대상이 되면 방어력·마저 10 증가(중첩)"},{"n":"크라운가드","e":"Crownguard","type":"완성 아이템","desc":"전투 시작 8초 최대 체력 25% 보호막, 소멸 시 주문력 25%"},{"n":"수호자의 맹세","e":"Protector's Vow","type":"완성 아이템","desc":"전투 시작 마나 20, 체력 40%일 때 마나 15·최대 체력 20% 보호막"},{"n":"태양불꽃 망토","e":"Sunfire Cape","type":"완성 아이템","desc":"최대 체력 8%, 2초마다 2칸 불태우기 1%·상처 33%"},{"n":"굳건한 심장","e":"Steadfast Heart","type":"완성 아이템","desc":"내구력 5%, 체력 50% 이상 시 내구력 15%"},{"n":"크라켄의 분노","e":"Kraken's Fury","type":"완성 아이템","desc":"기본 공격 시 공격력 3.5%(최대 15중첩), 15회 후 공속 15%"},{"n":"용의 발톱","e":"Dragon's Claw","type":"완성 아이템","desc":"최대 체력 6%, 2초마다 2.5% 회복"},{"n":"적응형 투구","e":"Adaptive Helm","type":"완성 아이템","desc":"모든 요소 마나 15% 증가, 탱커/전사 방어력·마저 30 또는 기타 공격력·주문력 10%"},{"n":"수은","e":"Quicksilver","type":"완성 아이템","desc":"전투 시작 18초 군중 제어 면역, 매초 공속 3%"},{"n":"구인수의 격노검","e":"Guinsoo's Rageblade","type":"완성 아이템","desc":"매초 공속 7%(중첩)"},{"n":"이온 충격기","e":"Ionic Spark","type":"완성 아이템","desc":"2칸 파쇄 30%, 스킬 사용 시 마나 150% 마법 피해"},{"n":"라바돈의 죽음모자","e":"Rabadon's Deathcap","type":"완성 아이템","desc":"주문력 대폭 증가(플레이버)"},{"n":"대천사의 지팡이","e":"Archangel's Staff","type":"완성 아이템","desc":"전투 중 5초마다 주문력 20% 증가"},{"n":"보석 건틀릿","e":"Jeweled Gauntlet","type":"완성 아이템","desc":"정밀 획득(스킬 치명타 적용)"},{"n":"푸른 파수꾼","e":"Blue Buff","type":"완성 아이템","desc":"모든 요소 공격력·주문력 10% 증가"},{"n":"내셔의 이빨","e":"Nashor's Tooth","type":"완성 아이템","desc":"기본 공격 시 마나 2, 치명타 시 4"},{"n":"저녁갑주","e":"Evenshroud","type":"완성 아이템","desc":"2칸 파열 30%, 전투 시작 15초 방어력·마저 15"},{"n":"모렐로노미콘","e":"Morellonomicon","type":"완성 아이템","desc":"10초간 불태우기 1%·상처 33% 적용"},{"n":"정령의 형상","e":"Spirit Visage","type":"완성 아이템","desc":"매초 잃은 체력 2% 회복"},{"n":"워모그의 갑옷","e":"Warmog's Armor","type":"완성 아이템","desc":"최대 체력 18%"},{"n":"타격대의 철퇴","e":"Striker's Flail","type":"완성 아이템","desc":"치명타 적중 시 5초 피해 증폭 5%(최대 4중첩)"},{"n":"정의의 손길","e":"Hand of Justice","type":"완성 아이템","desc":"공격력·주문력 15% / 흡혈 12%, 체력 50%↑ 시 두 배"},{"n":"도적의 장갑","e":"Thief's Gloves","type":"완성 아이템","desc":"매 라운드 무작위 아이템 2개 장착[슬롯 3개 차지]"},{"n":"전략가의 왕관","e":"Tactician's Crown","type":"완성 아이템","desc":"아군 최대 팀 규모 +1"},{"n":"전략가의 망토","e":"Tactician's Cape","type":"완성 아이템","desc":"팀 규모 +1, 전투 시작 10초 후 1골드 확률 10%"},{"n":"전략가의 방패","e":"Tactician's Shield","type":"완성 아이템","desc":"팀 규모 +1, 장착 유닛 사망 시 1골드 확률 10%"},{"n":"N.O.V.A. 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"길잡이 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"도전자 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"동물특공대 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"별돌보미 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"불한당 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"선봉대 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"습격자 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"시간 균열자 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"싸움꾼 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"암흑의 별 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"여행자 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"요새 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"우주 그루브 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"저격수 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"정령족 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"중재자 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"초능력 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"태고족 상징","e":"","type":"상징(엠블럼)","desc":"장착 시 해당 특성 획득 (뒤집개 조합)"},{"n":"공감 임플란트","e":"","type":"초능력 아이템","desc":"5초마다: 주문력 챔피언 마나 재생 1/공격력 챔피언 공속 15%. (4)초능력 시 스킬 피해 25% 고정 피해"},{"n":"드론 업링크","e":"","type":"초능력 아이템","desc":"드론이 3초마다 기본 공격·스킬 피해 25% 입힘. (4)초능력 시 피해 30% 회복 미니 드론"},{"n":"반도체","e":"","type":"초능력 아이템","desc":"기본 공격 4·8회마다 가까운 적 3명 감전·체력 7% 마법 피해"},{"n":"악성코드 매트릭스","e":"","type":"초능력 아이템","desc":"공격력 챔피언 적 방어력 2 감소/주문력 챔피언 적 마저 2 감소. (4)초능력 시 3회마다 주변 베어 100 물리"},{"n":"유기물 보존기","e":"","type":"초능력 아이템","desc":"최대 체력 5%·생명의 구슬 3개, 8초마다 구슬 잃은 체력 18% 회복. (4)초능력 시 회복량 30%"},{"n":"표적 고정 광학 장치","e":"","type":"초능력 아이템","desc":"전투마다 첫 피해 시 공격력 9%/주문력 7%. (4)초능력 시 처치마다 최대 체력 30% 회복"},{"n":"지휘 모드: 교란","e":"","type":"지휘 모드(소나)","desc":"유닛 사망 시 3칸 적 1초 기절 (탱커)"},{"n":"지휘 모드: 대비","e":"","type":"지휘 모드(소나)","desc":"전투 시작 8초 체력 20% 보호막 (탱커)"},{"n":"지휘 모드: 변환","e":"","type":"지휘 모드(소나)","desc":"처치 시 2골드 (핵심 유닛)"},{"n":"지휘 모드: 분석","e":"","type":"지휘 모드(소나)","desc":"생존 중 3초마다 경험치 1 (후방)"},{"n":"지휘 모드: 위장","e":"","type":"지휘 모드(소나)","desc":"다른 아군 사망까지 대상 지정 불가"},{"n":"지휘 모드: 이중 타격","e":"","type":"지휘 모드(소나)","desc":"기본 공격 25% 확률 두 번 (핵심)"},{"n":"지휘 모드: 제작","e":"","type":"지휘 모드(소나)","desc":"전투 시작 임시 추천 아이템 1개"},{"n":"지휘 모드: 최적화","e":"","type":"지휘 모드(소나)","desc":"마나 소모량 15% 감소 (마나 유닛)"},{"n":"지휘 모드: 탈진","e":"","type":"지휘 모드(소나)","desc":"기본 공격에 화상·상처·냉각·공속 8 (누구나)"},{"n":"거대한 히드라","e":"","type":"유물 아이템","desc":"기본 공격 시 인접 적에 최대 체력 4%+공격력 6% 추가 물리 피해"},{"n":"거물의 갑옷","e":"","type":"유물 아이템","desc":"피해 입으면 방어력·마저 1·체력 5(최대 35중첩), 최대 시 1골드·이후 11초마다 1골드[고유]"},{"n":"고속 연사포","e":"","type":"유물 아이템","desc":"공격 사거리 +1, 처치마다 1 증가"},{"n":"공허 건틀릿","e":"","type":"유물 아이템","desc":"전투 시작 최대 체력 30% 저장·매초 2.5% 추가, 사망 시 4칸 적에 저장 체력만큼 마법 피해[고유]"},{"n":"도박꾼의 칼날","e":"","type":"유물 아이템","desc":"보유 골드마다 공속 1%(최대 30골드), 기본 공격 6% 확률 1골드[고유]"},{"n":"라이트실드 문장","e":"","type":"유물 아이템","desc":"3초마다 체력 최저 아군에 5초 방어력+마저 70% 보호막, 사망 시 전체 부여"},{"n":"루덴의 폭풍","e":"","type":"유물 아이템","desc":"처치 후 남는 피해 100%+100 마법 피해 가장 가까운 적 2명"},{"n":"리치베인","e":"","type":"유물 아이템","desc":"스킬 후 첫 기본 공격 시 추가 마법 피해(스테이지 비례)"},{"n":"마법사의 최후","e":"","type":"유물 아이템","desc":"기본 공격 시 추가 마법 피해, 30% 체력 회복(스테이지 비례)"},{"n":"명멸검","e":"","type":"유물 아이템","desc":"기본 공격 시 공속 5% 중첩, 3회마다 공격력·주문력 2%"},{"n":"무한한 삼위일체","e":"","type":"유물 아이템","desc":"공격력·주문력·체력·공속 등 다방면 증가(플레이버: 없는 게 없습니다!)"},{"n":"바루스의 집착","e":"","type":"유물 아이템","desc":"전투 시작 강한 탱커 단짝, 생존 1초당 공격력·주문력 3% 중첩, 20% 단짝 체력 회복"},{"n":"방한 장갑","e":"","type":"유물 아이템","desc":"몸집 줄고 이동 속도 증가, 둔화·화상·상처 면역"},{"n":"불굴","e":"","type":"유물 아이템","desc":"이동 속도 대폭 감소, 최대 체력 15%·기절 면역, 현재 대상 근접으로 끌어당김"},{"n":"새벽심장","e":"","type":"유물 아이템","desc":"최대 마나 10 감소, 스킬 사용 시 최대 마나 10% 감소(최소 10)"},{"n":"새벽의 방패","e":"","type":"유물 아이템","desc":"2.5초마다 1칸 적 방어력 3 흡치고 방어력 15% 체력 회복"},{"n":"생선대가리","e":"","type":"유물 아이템","desc":"기본 공격 시 무작위 적 대상 지정"},{"n":"선체분쇄자","e":"","type":"유물 아이템","desc":"전투 시작 인접 아군 없으면 체력 400·공격력 10%·주문력 10%"},{"n":"소라카의 기적","e":"","type":"유물 아이템","desc":"처음 2회 체력 50% 이하 시 최대 체력 20% 회복, 생존 시 플레이어 체력 1"},{"n":"스태틱의 단검","e":"","type":"유물 아이템","desc":"기본 공격 3회마다 4명 적에 30+주문력 50% 마법 피해"},{"n":"승천의 부적","e":"","type":"유물 아이템","desc":"22초 후 최대 체력 100%·피해 증폭 120%"},{"n":"쓰레쉬의 랜턴","e":"","type":"유물 아이템","desc":"6초 후 가장 왼쪽 아군 전장으로, 받는 피해 20% 분담"},{"n":"아리의 오라","e":"","type":"유물 아이템","desc":"3개 여우불 공전, 각각 50 마법 피해, 마나 20 소모마다 이동 속도 5%"},{"n":"야스오의 검술","e":"","type":"유물 아이템","desc":"3초마다 다음 기본 공격 이중 공격"},{"n":"에코의 인내","e":"","type":"유물 아이템","desc":"스킬 피해 45% 증가하나 2초에 걸쳐 피해"},{"n":"역병의 보석","e":"","type":"유물 아이템","desc":"마법 피해 시 적 마저 6 감소, 마저 0이면 마나 2"},{"n":"영원한 서약","e":"","type":"유물 아이템","desc":"전투 시작 체력 최다 아군과 서약, 사망 시 마나 재생 10·주문력 40%"},{"n":"은빛 여명","e":"","type":"유물 아이템","desc":"기절 면역, 기본 공격 시 0.8초 기절, 공속 0.5 고정"},{"n":"이볼린의 본능","e":"","type":"유물 아이템","desc":"대상 변경 시 순간 이동, 체력 12% 이하 대상 처형"},{"n":"자객의 발톱","e":"","type":"유물 아이템","desc":"처치 후 해로운 효과 제거·4칸 최원거리 돌진, 치명타 2회 50% 추가"},{"n":"저격수의 집중","e":"","type":"유물 아이템","desc":"4칸 이상 떨어진 대상 피해 증폭 40%"},{"n":"존야의 역설","e":"","type":"유물 아이템","desc":"전투당 1회 체력 40%일 때 3초 무적[고유]"},{"n":"죽음의 저항","e":"","type":"유물 아이템","desc":"받는 피해 50%를 4초 비치명 피해로[고유]"},{"n":"지옥불 손도끼","e":"","type":"유물 아이템","desc":"기본 공격 시 최대 체력 3% 추가 물리, 잃은 체력 1%당 공속 1%"},{"n":"추적자의 팔목 보호대","e":"","type":"유물 아이템","desc":"처치 관여 시 방어력·마저·주문력 20 증가"},{"n":"카파 주스","e":"","type":"유물 아이템","desc":"처치 관여마다 모자 착용, 모자당 공격력·주문력 1%, 사망 시 20% 상실"},{"n":"황금 징수의 총","e":"","type":"유물 아이템","desc":"최대 체력 12%보다 낮은 적 처형, 처형 시 33% 1골드[고유]"},{"n":"황혼의 방패","e":"","type":"유물 아이템","desc":"2.5초마다 1칸 적 마저 3 흡치고 마저 15% 마법 피해"},{"n":"광휘 역장","e":"","type":"특수/영웅 아이템","desc":"최대 체력 20%, 매초 반경 1칸 최대 체력 3% 마법 피해, 6초마다 반경 증가(탱커)"},{"n":"귀여운 발사기","e":"","type":"특수/영웅 아이템","desc":"기본 공격마다 무작위 대상 레이저 3개·공격력 40% 물리(원거리)"},{"n":"그치지 않는 폭풍","e":"","type":"특수/영웅 아이템","desc":"선회 칼날 6개·파쇄·파열 30%(전사)"},{"n":"동물의 종말","e":"","type":"특수/영웅 아이템","desc":"입힌 피해 20% 저장, 3초마다 저장 피해 고정 피해(마법사)"},{"n":"로켓 연사","e":"","type":"특수/영웅 아이템","desc":"마나 30 소모마다 로켓 4개·공격력 30% 물리(징크스 추가: 스킬 로켓화)"},{"n":"만능 무기","e":"","type":"특수/영웅 아이템","desc":"동물특공대 기술의 정점(플레이버)"},{"n":"망가진 시제품","e":"","type":"특수/영웅 아이템","desc":"전투 시작 최대 체력 15% 보호막"},{"n":"메아리치는 박쥐칼날","e":"","type":"특수/영웅 아이템","desc":"기본 공격 3회마다 3명에 박쥐칼날 10개·50% 물리(원거리)"},{"n":"베인의 크로마칼날","e":"","type":"특수/영웅 아이템","desc":"기본 공격 5회마다 모든 적에 크로마칼날 30개·50% 물리(원거리)"},{"n":"불꽃 튀는 시제품","e":"","type":"특수/영웅 아이템","desc":"4초마다 4초 공속 30%"},{"n":"샤자의 비가","e":"","type":"특수/영웅 아이템","desc":"최대 체력 15% 잃을 때 초승달 투사체·방어력·마저 50% 물리, 방어력·마저 3 강탈(탱커)"},{"n":"샤자의 비탄","e":"","type":"특수/영웅 아이템","desc":"최대 체력 15% 잃을 때 3줄 초승달, 방어력·마저 10 강탈(탱커)"},{"n":"얼음폭렬 갑옷","e":"","type":"특수/영웅 아이템","desc":"체력 70/35% 이하 시 4초 최대 체력 20% 보호막·서리 폭발 3칸 1.5초 기절(탱커)"},{"n":"엉성한 시제품","e":"","type":"특수/영웅 아이템","desc":"5초마다 주문력 3 감소·마나 재생 1 증가"},{"n":"완전 빙결","e":"","type":"특수/영웅 아이템","desc":"체력 90/60/40/20% 이하 시 보호막·서리 폭발·기절(탱커)"},{"n":"왕 귀여운 발사기","e":"","type":"특수/영웅 아이템","desc":"기본 공격마다 레이저 9개·공격력 40% 물리(원거리)"},{"n":"인도의 저주","e":"","type":"특수/영웅 아이템","desc":"3초마다 무작위 적 투사체 마법 피해(오로라 추가: 주문력 12)"},{"n":"일식","e":"","type":"특수/영웅 아이템","desc":"최대 체력 18%, 매초 반경 2칸 최대 체력 5% 마법 피해(탱커)"},{"n":"전투 토끼 석궁","e":"","type":"특수/영웅 아이템","desc":"정밀, 치명타 4회마다 관통 화살 5개·80% 물리(원거리/전사)"},{"n":"절멸자","e":"","type":"특수/영웅 아이템","desc":"입힌 피해 25% 저장, 사망/16초 후 적에 저장 피해(마법사)"},{"n":"진화한 불꽃 사격","e":"","type":"특수/영웅 아이템","desc":"마나 15 소모마다 투사체·주문력 50% 마법 피해·화상·상처(마법사)"},{"n":"촉수 후려치기","e":"","type":"특수/영웅 아이템","desc":"5초마다 촉수 소환·후려치기(일라오이 추가: 흡수 대상 35% 피해)"},{"n":"타오르는 단궁","e":"","type":"특수/영웅 아이템","desc":"마나 20 소모마다 투사체·주문력 75% 마법 피해·화상·상처(마법사)"},{"n":"토끼 프라임 거대 석궁","e":"","type":"특수/영웅 아이템","desc":"정밀, 치명타 3회마다 관통 화살 6개·100% 물리(원거리)"},{"n":"포악한 절단검","e":"","type":"특수/영웅 아이템","desc":"기본 공격 시 인접 적 30% 피해·흡혈 150%(브라이어 추가: 15회 발동)"},{"n":"회오리 칼날","e":"","type":"특수/영웅 아이템","desc":"선회 칼날 3개, 4초 파쇄·파열 30%(전사)"},{"n":"데마시아의 왕관","e":"","type":"특수/영웅 아이템","desc":"탱커일 때 2초마다 최대 체력 3~21% 회복, 사망 시 즉시 패배"},{"n":"이상 현상","e":"","type":"특수/영웅 아이템","desc":"역할군에 따라 강화(탱커/원거리/전사·암살자/마법사/전문가)"},{"n":"타격 선택기","e":"","type":"특수/영웅 아이템","desc":"N.O.V.A. 챔피언 힘의 고조 시 타격 효과 활성화"},{"n":"찬란한 거인 학살자","e":"","type":"찬란한(강화) 아이템","desc":"탱커 상대 추가 피해 증폭 30%"},{"n":"찬란한 마법공학 총검","e":"","type":"찬란한(강화) 아이템","desc":"입힌 피해 40%만큼 체력 최저 아군 회복"},{"n":"찬란한 모렐로노미콘","e":"","type":"찬란한(강화) 아이템","desc":"10초 불태우기 2%·상처 33%"},{"n":"찬란한 무한의 대검","e":"","type":"찬란한(강화) 아이템","desc":"정밀 획득(강화판)"},{"n":"찬란한 밤의 끝자락","e":"","type":"찬란한(강화) 아이템","desc":"체력 60%일 때 대상 지정 불가·해로운 효과 제거·잃은 체력 모두 회복"},{"n":"찬란한 보석 건틀릿","e":"","type":"찬란한(강화) 아이템","desc":"정밀 획득(강화판)"},{"n":"찬란한 붉은 덩굴정령","e":"","type":"찬란한(강화) 아이템","desc":"5초 불태우기 2%·상처 33%"},{"n":"찬란한 쇼진의 창","e":"","type":"찬란한(강화) 아이템","desc":"기본 공격 시 추가 마나 10"},{"n":"찬란한 수은","e":"","type":"찬란한(강화) 아이템","desc":"45초 군중 제어 면역, 매초 공속 6%"},{"n":"찬란한 수호자의 맹세","e":"","type":"찬란한(강화) 아이템","desc":"전투 시작 마나 40, 체력 40%일 때 마나 30·최대 체력 50% 보호막"},{"n":"찬란한 스테락의 도전","e":"","type":"찬란한(강화) 아이템","desc":"체력 60%일 때 최대 체력 80% 보호막(6초)"},{"n":"찬란한 용의 발톱","e":"","type":"찬란한(강화) 아이템","desc":"최대 체력 28%, 2초마다 5% 회복"},{"n":"찬란한 워모그의 갑옷","e":"","type":"찬란한(강화) 아이템","desc":"최대 체력 36%"},{"n":"찬란한 이온 충격기","e":"","type":"찬란한(강화) 아이템","desc":"2칸 파쇄 30%, 스킬 마나 300% 마법 피해"},{"n":"찬란한 저녁갑주","e":"","type":"찬란한(강화) 아이템","desc":"3칸 파열 30%, 20초 방어력·마저 50"},{"n":"찬란한 적응형 투구","e":"","type":"찬란한(강화) 아이템","desc":"마나 30%, 탱커/전사 방어력·마저 80, 원거리/마법사 공격력·주문력 40%"},{"n":"찬란한 정령의 형상","e":"","type":"찬란한(강화) 아이템","desc":"매초 잃은 체력 4% 회복"},{"n":"찬란한 정의의 손길","e":"","type":"찬란한(강화) 아이템","desc":"공격력·주문력 30% / 흡혈 24%"},{"n":"찬란한 죽음의 검","e":"","type":"찬란한(강화) 아이템","desc":"공격력 대폭(플레이버)"},{"n":"찬란한 최후의 속삭임","e":"","type":"찬란한(강화) 아이템","desc":"전투 끝까지 파열 30%(중복 불가)"},{"n":"찬란한 크라운가드","e":"","type":"찬란한(강화) 아이템","desc":"8초 최대 체력 50% 보호막, 소멸 시 주문력 50%"},{"n":"찬란한 크라켄의 분노","e":"","type":"찬란한(강화) 아이템","desc":"기본 공격 시 공격력 7%(최대 15중첩), 15회 후 공속 30%"},{"n":"찬란한 타격대의 철퇴","e":"","type":"찬란한(강화) 아이템","desc":"치명타 시 5초 피해 증폭 10%(최대 4중첩)"},{"n":"찬란한 태양불꽃 망토","e":"","type":"찬란한(강화) 아이템","desc":"최대 체력 16%, 2초마다 불태우기 2%·상처 33%"},{"n":"찬란한 푸른 파수꾼","e":"","type":"찬란한(강화) 아이템","desc":"공격력·주문력 20%"},{"n":"찬란한 피바라기","e":"","type":"찬란한(강화) 아이템","desc":"전투당 1회 체력 40%일 때 최대 체력 50% 보호막"},{"n":"찬란한 가고일 돌갑옷","e":"","type":"찬란한(강화) 아이템","desc":"공격 대상 시 방어력·마저 20 증가"},{"n":"찬란한 거인의 결의","e":"","type":"찬란한(강화) 아이템","desc":"공격력·주문력 4%(최대 25중첩), 최대 시 피해 증폭 20%·군중 제어 면역"},{"n":"찬란한 공허의 지팡이","e":"","type":"찬란한(강화) 아이템","desc":"전투 끝까지 파쇄 30%(중복 불가)"},{"n":"찬란한 구인수의 격노검","e":"","type":"찬란한(강화) 아이템","desc":"매초 공속 16%"},{"n":"찬란한 굳건한 심장","e":"","type":"찬란한(강화) 아이템","desc":"내구력 10%, 체력 50%↑ 시 내구력 30%"},{"n":"찬란한 내셔의 이빨","e":"","type":"찬란한(강화) 아이템","desc":"기본 공격 시 마나 4, 치명타 시 6"},{"n":"찬란한 대천사의 지팡이","e":"","type":"찬란한(강화) 아이템","desc":"5초마다 주문력 40%"},{"n":"찬란한 덤불 조끼","e":"","type":"찬란한(강화) 아이템","desc":"최대 체력 12%·기본 공격 피해 10% 감소, 피격 시 200 마법 피해"},{"n":"찬란한 도적의 장갑","e":"","type":"찬란한(강화) 아이템","desc":"무작위 찬란한 아이템 2개[슬롯 3개]"},{"n":"찬란한 라바돈의 죽음모자","e":"","type":"찬란한(강화) 아이템","desc":"주문력 대폭(플레이버)"}],"augments":[{"n":"가지 뻗기","tier":"silver","when":"2-1","desc":"무작위 상징 1개 획득"},{"n":"가지 뻗기+","tier":"silver","when":"3-2","desc":"무작위 상징·재조합기 획득(재조합기로 어떤 아이템이든 재제작)"},{"n":"권투 교습","tier":"silver","when":"3-2/4-2","desc":"전방에서 전투 시작하는 아군 하나당 체력 30"},{"n":"급매","tier":"silver","when":"비활성화","desc":"라운드마다 상점 3단계 이하 무작위 챔피언 1명 훔침·1골드"},{"n":"길을 내라","tier":"silver","when":"2-1","desc":"B.F. 대검 1개, 아군이 65000 물리 피해 시 2개 더"},{"n":"꼬마 거인","tier":"silver","when":"2-1","desc":"현재·최대 플레이어 체력 20 증가"},{"n":"꽁!","tier":"silver","when":"2-1","desc":"나서스 획득(공격력 전사, 처치마다 강화되는 단일 대상 스킬)"},{"n":"끈끈한 우정","tier":"silver","when":"2-1/3-2","desc":"하급 챔피언 복제기(3단계 이하), 5전투 후 재획득"},{"n":"다 쓸 데가 있다니까 I","tier":"silver","when":"2-1","desc":"아이템 미장착 챔피언 사망 시 40% 확률 1골드"},{"n":"단결된 의지","tier":"silver","when":"3-2/4-2","desc":"고유 아닌 활성화 특성당 공격력·주문력 1.5%"},{"n":"단짝 I","tier":"silver","when":"3-2/4-2","desc":"고립된 아군 전투 시작 공속 10%·방어력·마저 9"},{"n":"단체 포옹 I","tier":"silver","when":"3-2/4-2","desc":"전투 시작 인접 아군에 방어력·마저 6 부여(중첩)"},{"n":"대격변 생성기","tier":"silver","when":"3-2","desc":"전장 챔피언 1단계 상승(최대5)·자석 제거기 2개·새로고침 3회"},{"n":"도둑 무리","tier":"silver","when":"2-1/3-2/4-2","desc":"도적의 장갑 1개"},{"n":"방패 여전사","tier":"silver","when":"2-1","desc":"레오나 획득(공격력 전사, 돌진·기절)"},{"n":"별빛 연계","tier":"silver","when":"2-1","desc":"아트록스 획득(공격력 전사, 3방식 번갈아 타격)"},{"n":"부식","tier":"silver","when":"3-2/4-2","desc":"전방 2열 적 방어력·마저 2초마다 4 감소"},{"n":"불완전한 초월","tier":"silver","when":"3-2/4-2","desc":"전투 시작 12초 후 피해 증폭 20%"},{"n":"새로고침의 날 I","tier":"silver","when":"3-2/4-2","desc":"무료 상점 새로고침 10회"},{"n":"생존자","tier":"silver","when":"2-1","desc":"4골드, 플레이어 3명 탈락 시 100골드 추가"},{"n":"서열 상승 I","tier":"silver","when":"3-2/4-2","desc":"아군 사망 시 특성 공유 아군 주문력·공격력 3.5%·방어력·마저 3.5"},{"n":"수호자의 친구","tier":"silver","when":"2-1","desc":"무작위 2단계 챔피언 1명, 레벨업마다 동일 챔피언 1명"},{"n":"승승장구","tier":"silver","when":"3-2","desc":"지난 전투 배치 챔피언 별레벨 업마다 새로고침 1회·6골드"},{"n":"시동 걸기","tier":"silver","when":"2-1","desc":"무작위 2단계 2성 챔피언 1명·1골드"},{"n":"신중한 제작","tier":"silver","when":"2-1","desc":"8전투 후 유물 모루(4선택지)"},{"n":"쌍둥이 수호자","tier":"silver","when":"3-2/4-2","desc":"전방 아군 정확히 2명이면 체력 100·방어력·마저 35"},{"n":"아이템 꾸러미","tier":"silver","when":"2-1/3-2/4-2","desc":"무작위 완성 아이템 1개"},{"n":"약간 신비한 주사위","tier":"silver","when":"2-1","desc":"주사위 굴려 결과에 따라 보상"},{"n":"연결 불가","tier":"silver","when":"3-2/4-2","desc":"1단계 챔피언 복사본 1명씩"},{"n":"연속 주문 사용","tier":"silver","when":"2-1","desc":"쓸데없이 큰 지팡이 1개, 42000 마법 피해 시 2개 더"},{"n":"예비 활","tier":"silver","when":"2-1","desc":"곡궁 1개, 1000회 기본 공격 시 2개 더"},{"n":"위험한 행보","tier":"silver","when":"2-1","desc":"전략가 체력 20 잃고 7전투 후 26골드"},{"n":"유리 대포 I","tier":"silver","when":"3-2/4-2","desc":"후방 1열 아군 체력 80% 조정되나 피해 증폭 16%"},{"n":"유용한 금속","tier":"silver","when":"2-1","desc":"조합 아이템 모루 1개·3골드"},{"n":"은수저","tier":"silver","when":"2-1","desc":"경험치 10"},{"n":"인지세","tier":"silver","when":"2-1","desc":"8골드·경험치 1"},{"n":"인지세+","tier":"silver","when":"3-2","desc":"12골드·경험치 3"},{"n":"일상물","tier":"silver","when":"2-1","desc":"스테이지당 두 번 무작위 챔피언(단계 증가, 5단계 획득 후 종료)"},{"n":"임무 재시작","tier":"silver","when":"3-2","desc":"전 챔피언 제거, 3단계 2성 2명·2단계 2성 2명·1단계 2성 1명"},{"n":"임시변통 방어구 I","tier":"silver","when":"2-1/3-2","desc":"아이템 없는 아군 방어력·마저 30"},{"n":"자리 비움","tier":"silver","when":"2-1","desc":"3라운드 행동 불가, 이후 17골드"},{"n":"작은 꾸러미","tier":"silver","when":"3-2/4-2","desc":"무작위 조합 아이템 2개"},{"n":"재생의 바람","tier":"silver","when":"3-2/4-2","desc":"전투 시작 10초 후 잃은 체력 40% 회복"},{"n":"전기 충전 I","tier":"silver","when":"2-1/3-2/4-2","desc":"4번 공격당할 때마다 주변 적 30~90 마법 피해(1초 CD)"},{"n":"전하 이동 I","tier":"silver","when":"3-2/4-2","desc":"피해 증폭 7%, 처치 후 남는 피해 50% 가장 가까운 적 마법 피해"},{"n":"점심값","tier":"silver","when":"2-1/3-2","desc":"적 전략가에 8피해마다 2골드"},{"n":"정교한 공예","tier":"silver","when":"2-1","desc":"완성 아이템 제작마다 새로고침 2회"},{"n":"정렬","tier":"silver","when":"3-2/4-2","desc":"전방 2열 전투 시작 아군당 방어력·마저 2"},{"n":"정령단 속도","tier":"silver","when":"2-1","desc":"뽀삐 획득(원거리 마법사, 고속 정령 발사)"},{"n":"중심 잡기","tier":"silver","when":"3-2/4-2","desc":"전방 1열 중앙 아군 피해 증폭 15%·최대 체력 25%"},{"n":"증강된 힘","tier":"silver","when":"2-1/3-2","desc":"다음 증강 한 등급 상승"},{"n":"참는 자에게 복을","tier":"silver","when":"2-1","desc":"새로고침 4회, 라운드마다 미구매 시 무료 새로고침 1회"},{"n":"추방자 I","tier":"silver","when":"3-2/4-2","desc":"인접 없이 시작 아군 10초 최대 체력 20% 보호막"},{"n":"친구 사귀기","tier":"silver","when":"4-2","desc":"다음 1단계 챔피언 3성, 5골드"},{"n":"크기의 중요성","tier":"silver","when":"3-2","desc":"거인의 허리띠, 3600 체력 시작 시 워모그의 갑옷"},{"n":"탐사","tier":"silver","when":"2-1","desc":"라운드마다 대기석 우측 챔피언 잃음, 33골드 가치 잃으면 보상·3단계 1명"},{"n":"탑","tier":"silver","when":"2-1/3-2/4-2","desc":"거대 훈련 봇(4초마다 3명 최대 체력 5% 고정 피해)"},{"n":"판도라의 아이템","tier":"silver","when":"2-1/3-2/4-2","desc":"라운드 시작 대기석 아이템 무작위, 무작위 조합 아이템 1개"},{"n":"하나, 둘, 다섯!","tier":"silver","when":"4-2","desc":"무작위 조합 아이템 1개·2골드·무작위 5단계 챔피언 1명"},{"n":"하나, 둘, 셋","tier":"silver","when":"2-1","desc":"1단계 2명·2단계 1명·3단계 1명"},{"n":"행운의 기운","tier":"silver","when":"3-2","desc":"12골드, 동전 앞면 시 4골드 추가"},{"n":"협력","tier":"silver","when":"3-2/4-2","desc":"무작위 조합 아이템 1개·무작위 3단계 챔피언 2명"},{"n":"화력 집중","tier":"silver","when":"3-2/4-2","desc":"공격력 10%, 5초마다 5% 추가"},{"n":"회복의 구 I","tier":"silver","when":"3-2/4-2","desc":"적 사망 시 가장 가까운 아군 체력 250 회복"},{"n":"후반 전문가","tier":"silver","when":"3-2","desc":"9레벨 도달 시 27골드"},{"n":"훈련 봇 변환","tier":"silver","when":"3-2","desc":"전 챔피언 잃고 체력 총합 60% 훈련 봇, 스테이지마다 1000, 2단계 2성 1명"},{"n":"흐르는 눈물","tier":"silver","when":"2-1","desc":"여신의 눈물 1개, 6500 마나 사용 시 2개 더"},{"n":"흡혈의 활력 I","tier":"silver","when":"3-2/4-2","desc":"적 전략가 피해 12% 플레이어 체력 회복, 흡혈 10%"},{"n":"2만한 가치","tier":"gold","when":"비활성화","desc":"지난 전투 배치 서로 다른 2단계 2명당 새로고침 1회·2단계 1명"},{"n":"2인조","tier":"gold","when":"4-2","desc":"무작위 5단계 2명·무작위 조합 아이템 복사본 2개"},{"n":"3단계 군단","tier":"gold","when":"2-1","desc":"무작위 상징 1개, 3단계·상징 장착 아군 체력 150·공속 12%"},{"n":"4가 함께하길","tier":"gold","when":"4-2","desc":"4단계 챔피언·진 체력 144·공속 14%, 진 획득"},{"n":"4후지원","tier":"gold","when":"4-2","desc":"다음 골드 구매 4단계 챔피언 즉시 2성, 7골드"},{"n":"21골드 획득","tier":"gold","when":"3-2","desc":"21골드"},{"n":"U.R.F","tier":"gold","when":"2-1/3-2/4-2","desc":"뒤집개 1개, 뒤집개·프라이팬 장착 챔피언 공속 20%·마나 재생 3"},{"n":"강철의 심장","tier":"gold","when":"2-1","desc":"굳건한 심장 1개, 10초 생존마다 최대 체력 16 영구 증가"},{"n":"검 제작자","tier":"gold","when":"4-2","desc":"B.F. 대검 완성 아이템 2개"},{"n":"경호대 훈련","tier":"gold","when":"2-1","desc":"방어력·마저 15(레벨당 2 증가)"},{"n":"계산된 패배","tier":"gold","when":"2-1","desc":"패배 후 2골드·새로고침 1회"},{"n":"고독한 방패","tier":"gold","when":"2-1/3-2","desc":"가고일 돌갑옷 1개, 가로 열 혼자면 최대 체력 17%"},{"n":"고위천사의 지팡이","tier":"gold","when":"2-1/3-2","desc":"대천사의 지팡이 1개, 주문력 90%↑ 시 마나 재생 2 추가"},{"n":"고전압","tier":"gold","when":"2-1/3-2","desc":"이온 충격기 1개, 반경 +3칸·피해 25% 증가"},{"n":"교환의 장","tier":"gold","when":"2-1","desc":"라운드마다 무료 새로고침·2골드"},{"n":"구원의 영혼","tier":"gold","when":"2-1/3-2","desc":"정령의 형상 1개, 5초마다 1칸 아군 잃은 체력 7.5% 회복"},{"n":"기다림의 미학","tier":"gold","when":"2-1","desc":"무작위 1단계 챔피언 1명, 매 라운드 복사본"},{"n":"끈질긴 연구","tier":"gold","when":"2-1","desc":"승리 시 경험치 2, 패배 시 3"},{"n":"나 혼자 레벨업","tier":"gold","when":"2-1","desc":"5전투 팀 규모 1·능력치 대폭 증가, 이후 조합 아이템 2개"},{"n":"단일 조합 사수","tier":"gold","when":"2-1","desc":"참여 챔피언 대기석·판매 불가, 전투 후 체력·공격력·주문력 1%"},{"n":"단짝 II","tier":"gold","when":"3-2/4-2","desc":"고립 아군 공속 15%·방어력·마저 14"},{"n":"단체 포옹 II","tier":"gold","when":"3-2/4-2","desc":"전투 시작 인접 아군 방어력·마저 9 부여(중첩)"},{"n":"대장군의 명예","tier":"gold","when":"2-1/3-2","desc":"라운드마다 공격력·주문력 5%(최대 4중첩)"},{"n":"대출 선지급","tier":"gold","when":"2-1","desc":"20골드, 다음 증강 한 등급 하락"},{"n":"대출 선지급+","tier":"gold","when":"3-2","desc":"33골드, 다음 증강 한 등급 하락"},{"n":"도금 강철","tier":"gold","when":"4-2","desc":"5단계 비탱커 2명, 5단계 배치 시 1~4단계 내구력 8%"},{"n":"돈독","tier":"gold","when":"2-1","desc":"즉시 7골드·스테이지마다 7골드, 골드 획득 시 전략가 커짐"},{"n":"동료 제작","tier":"gold","when":"3-2","desc":"다음 1단계 챔피언 3성, 2골드"},{"n":"동물특공대 지휘관","tier":"gold","when":"2-1","desc":"브라이어·징크스·일라오이, 플레이어 체력 5 증가"},{"n":"땔감 제공","tier":"gold","when":"2-1/3-2","desc":"태양불꽃 망토 1개, 불태우기 적 공격 시 흡혈 12%"},{"n":"뜨거운 죽음","tier":"gold","when":"2-1","desc":"모데카이저 획득(주문력 전사, 오라 지속 피해)"},{"n":"마법 주사위","tier":"gold","when":"3-2","desc":"주사위 3개 총합에 따라 보상"},{"n":"맑은 정신","tier":"gold","when":"2-1","desc":"전투 종료 시 대기석 비어있으면 경험치 3"},{"n":"무차별적 살인자","tier":"gold","when":"3-2/4-2","desc":"거인 학살자 1개, 모든 적 상대 피해 증폭"},{"n":"무한한 보호","tier":"gold","when":"2-1","desc":"3골드, 3-7에 무한한 삼위일체, 같은 열 아군 체력 12% 보호막"},{"n":"미래 지향적 사고","tier":"gold","when":"3-2","desc":"모든 골드 잃고 5전투 후 되찾고 62골드 추가"},{"n":"반항아","tier":"gold","when":"3-2","desc":"활성 고유 특성당 체력 55, 라아스트·미스 포츈 획득"},{"n":"보물 사냥","tier":"gold","when":"2-1","desc":"스테이지 6까지 잠긴 상자, 18골드 새로고침 시 개봉"},{"n":"보석 연꽃 I","tier":"gold","when":"3-2/4-2","desc":"치명타 확률 10%·정밀"},{"n":"복제","tier":"gold","when":"2-1/3-2","desc":"조합 아이템 3중 1선택, 2라운드 복사본"},{"n":"부스터 팩","tier":"gold","when":"2-1","desc":"12골드 가치 무작위 챔피언(3단계 최소 1명)"},{"n":"부스터 팩+","tier":"gold","when":"3-2","desc":"18골드 가치(4단계 최소 1명)"},{"n":"부스터 팩++","tier":"gold","when":"4-2","desc":"26골드 가치(5단계 최소 1명)"},{"n":"부작용","tier":"gold","when":"3-2/4-2","desc":"회복 시 대상 회복량 50% 마법 피해, 5초마다 최대 체력 4% 회복"},{"n":"빅뱅","tier":"gold","when":"2-1","desc":"꼬마 정령 획득(주문력 전사, 도약 광역 피해)"},{"n":"뻗어가는 뿌리","tier":"gold","when":"2-1","desc":"무작위 상징 2개·1골드"},{"n":"뻗어가는 뿌리+","tier":"gold","when":"3-2","desc":"무작위 상징 2개·재조합기·2골드"},{"n":"사이버네틱 이식술","tier":"gold","when":"3-2/4-2","desc":"아이템 장착 아군 체력 100·공격력 15%, B.F. 대검"},{"n":"사이버네틱 통신","tier":"gold","when":"3-2/4-2","desc":"아이템 장착 아군 체력 100·마나 재생 2, 여신의 눈물"},{"n":"삼인방 I","tier":"gold","when":"3-2/4-2","desc":"3단계 2명, 무작위 3단계 3명 체력 220·공속 20%"},{"n":"새로운 시대","tier":"gold","when":"2-1","desc":"스테이지마다 경험치 4·새로고침 2회"},{"n":"새로운 시대+","tier":"gold","when":"3-2","desc":"스테이지마다 경험치 8·새로고침 2회"},{"n":"생일 모임","tier":"gold","when":"2-1","desc":"1골드, 5레벨 2단계 2성·7레벨 도적의 장갑·9레벨 5단계 2성"},{"n":"서사적 새로고침","tier":"gold","when":"3-2","desc":"8레벨 도달 시 새로고침 20회"},{"n":"서열 상승 II","tier":"gold","when":"3-2/4-2","desc":"아군 사망 시 공유 아군 주문력·공격력 7%·방어력·마저 6"},{"n":"선물 꾸러미","tier":"gold","when":"3-2","desc":"스테이지마다 전리품·1골드 선물 꾸러미"},{"n":"수완가","tier":"gold","when":"2-1","desc":"이자 없고 전투 라운드마다 3골드"},{"n":"슬쩍하기","tier":"gold","when":"3-2","desc":"라운드마다 처음 처치 챔피언 복사본, 19골드 가치 시 도적의 장갑"},{"n":"시간의 흐름","tier":"gold","when":"2-1","desc":"체력 100, 시간 균열자 새로고침마다 체력 7·공속 0.3%, 이즈리얼·판테온"},{"n":"시계태엽 윤활유","tier":"gold","when":"3-2/4-2","desc":"전투 중 3초마다 공속 10%"},{"n":"신성한 개정","tier":"gold","when":"3-2","desc":"중재자 법률 두 번째 효과, 레오나·조이"},{"n":"신성한 대장간","tier":"gold","when":"2-1/3-2/4-2","desc":"신성한 유물 4중 1선택"},{"n":"실컷 울어봐라","tier":"gold","when":"2-1/3-2","desc":"여신의 눈물, 마나 재생 1, 12초 후 4"},{"n":"쌍두마차","tier":"gold","when":"2-1/3-2","desc":"똑같은 챔피언 2명이면 체력 375, 하나 사망 시 35% 보호막"},{"n":"아케인 빅토르이!","tier":"gold","when":"3-2/4-2","desc":"전투 시작 8초 후 적 팀 1.5초 기절, 18초 후 반복"},{"n":"악의적 수익 창출","tier":"gold","when":"4-2","desc":"4골드, 2라운드 적 처치 시 2골드"},{"n":"어수선한 마음","tier":"gold","when":"2-1","desc":"무작위 1단계 4명, 대기석 가득 시 경험치 3"},{"n":"얽힌 마법","tier":"gold","when":"2-1","desc":"무작위 조합 아이템 1개, 2200 마나마다 조합 아이템"},{"n":"엄청나게 이로운 효과!","tier":"gold","when":"3-2/4-2","desc":"체력 44·공격력 4%·주문력 4%·방어력 4·마저 4·공속 4%·마나 4"},{"n":"에너지 파동","tier":"gold","when":"3-2/4-2","desc":"기본 공격 5회마다 100% 추가 고정 피해"},{"n":"영웅 꾸러미","tier":"gold","when":"2-1","desc":"하급 챔피언 복제기 2개·5골드"},{"n":"영웅 꾸러미+","tier":"gold","when":"3-2","desc":"복제기 2개·8골드"},{"n":"영웅 꾸러미++","tier":"gold","when":"4-2","desc":"복제기 2개·14골드"},{"n":"영원한 브론즈 I","tier":"gold","when":"3-2/4-2","desc":"브론즈 등급 특성당 피해 증폭 2%"},{"n":"예금 계좌","tier":"gold","when":"2-1","desc":"이자 50골드 시 25골드, 최대 이자 7골드·2골드"},{"n":"오라 축적","tier":"gold","when":"2-1","desc":"추천 아이템 5단계 2성 챔피언(4-3부터 배치)"},{"n":"왕관의 무게","tier":"gold","when":"2-1/3-2","desc":"데마시아의 왕관(장착 유닛 사망 시 라운드 패배)"},{"n":"우르프의 갬빗","tier":"gold","when":"3-2","desc":"승리 시 뒤집개, 패배 시 프라이팬, 조합 아이템 모루·3골드"},{"n":"우주적 재시작","tier":"gold","when":"3-2","desc":"전 유닛 판매, 무작위 상징 2개·새로고침 15회"},{"n":"유리 대포 II","tier":"gold","when":"3-2/4-2","desc":"후방 1열 체력 80% 조정, 피해 증폭 25%"},{"n":"은하계 여행","tier":"gold","when":"2-1/3-2","desc":"여행자 체력 130·공격력 13%·주문력 13%(새 플레이어마다 10%), 파이크·꼬마 정령"},{"n":"인지 과부하","tier":"gold","when":"3-2","desc":"7골드·1단계 2성·2단계·3단계 2명·경험치 1·새로고침 1회"},{"n":"임시변통 방어구 II","tier":"gold","when":"2-1/3-2","desc":"아이템 없는 아군 방어력·마저 50"},{"n":"자폭","tier":"gold","when":"2-1","desc":"그라가스 획득(주문력 전사, 거대 폭발·자해)"},{"n":"작은 친구들","tier":"gold","when":"3-2/4-2","desc":"4·5단계 아군이 1·2단계 아군당 체력 65·공속 7%"},{"n":"재빠른 더블 킬","tier":"gold","when":"2-1","desc":"구인수의 격노검, 플레이어 2명 탈락 시 40골드"},{"n":"재빠른 무장","tier":"gold","when":"2-1","desc":"3골드, 전투 후 대기석 아이템 없으면 경험치 2"},{"n":"재빠른 무장+","tier":"gold","when":"3-2","desc":"4골드·경험치 10, 이후 아이템 없으면 경험치 2"},{"n":"재생의 바람 II","tier":"gold","when":"3-2/4-2","desc":"전투 시작 10초 후 잃은 체력 60% 회복"},{"n":"재활용 쓰레기통","tier":"gold","when":"2-1","desc":"무작위 완성 아이템, 8전투 후 조합 아이템, 판매 시 분해"},{"n":"재활용 쓰레기통+","tier":"gold","when":"3-2/4-2","desc":"무작위 완성 아이템, 4전투 후 조합 아이템, 판매 시 분해"},{"n":"저 별을 향해","tier":"gold","when":"2-1","desc":"잭스 획득(주문력 전사, 추가 마법 피해·중첩 공속)"},{"n":"전기 충전 II","tier":"gold","when":"2-1/3-2/4-2","desc":"4번 공격당할 때마다 주변 적 50~140 마법 피해"},{"n":"전리품 특이점","tier":"gold","when":"2-1","desc":"블랙홀 적 우주 물질 변환→전리품, 초가스·리산드라"},{"n":"전방의 토대","tier":"gold","when":"2-1","desc":"1단계 2성 탱커·해당 상징"},{"n":"전하 이동 II","tier":"gold","when":"3-2/4-2","desc":"피해 증폭 10%, 처치 후 남는 피해 80% 마법 피해"},{"n":"조기 교육","tier":"gold","when":"2-1","desc":"공격력·주문력 5%(전투 후 1% 증가), 1단계 두 배"},{"n":"주인공 버프","tier":"gold","when":"3-2/4-2","desc":"방어력·마저 8, 체력 50% 이하 시 40"},{"n":"지팡이 제작자","tier":"gold","when":"4-2","desc":"쓸데없이 큰 지팡이 완성 아이템 2개"},{"n":"집중","tier":"gold","when":"2-1","desc":"전달자 스킬 지속 25~50% 증가, 조이·모데카이저"},{"n":"철퇴의 의지","tier":"gold","when":"3-2/4-2","desc":"연습용 장갑, 치명타 확률 25%"},{"n":"청부 살인마","tier":"gold","when":"2-1","desc":"파이크 획득(공격력 전사, 처치 관여 골드)"},{"n":"초월","tier":"gold","when":"3-2/4-2","desc":"전투 시작 12초 후 피해 증폭 35%"},{"n":"추방자 II","tier":"gold","when":"3-2/4-2","desc":"인접 없이 시작 아군 10초 최대 체력 30% 보호막"},{"n":"출정","tier":"gold","when":"2-1","desc":"2단계 2성 1명, 플레이어 80피해 시 상자"},{"n":"충돌 시험용 봇","tier":"gold","when":"3-2/4-2","desc":"훈련 봇 2개, 전투 시작 적 무리 1초 기절"},{"n":"침략자 제드","tier":"gold","when":"3-2","desc":"쇼진의 창, 4-2에 제드(5단계 공격력 전사, 분신)"},{"n":"큰 꾸러미","tier":"gold","when":"3-2/4-2","desc":"무작위 조합 아이템 3개·2골드·재조합기"},{"n":"태양불꽃판","tier":"gold","when":"3-2/4-2","desc":"전투 시작 모든 적 18초 최대 체력 18% 불태움·회복 33% 감소"},{"n":"특별 맞춤 설정","tier":"gold","when":"3-2/4-2","desc":"행운의 아이템 상자·자석 제거기·7골드"},{"n":"파이트 머니","tier":"gold","when":"2-1","desc":"조합 아이템 2개, 5승마다 조합 아이템"},{"n":"판도라의 아이템 II","tier":"gold","when":"2-1/3-2/4-2","desc":"대기석 아이템 무작위, 무작위 조합 아이템 2개"},{"n":"폭발적인 성장","tier":"gold","when":"3-2","desc":"3라운드 경험치 7"},{"n":"폭발적인 성장+","tier":"gold","when":"4-2","desc":"3라운드 경험치 10"},{"n":"피의 공물","tier":"gold","when":"2-1/3-2","desc":"피바라기 1개, 전투 시작 체력 15% 잃고 20% 보호막·공격력·주문력 12%"},{"n":"활의 수호자","tier":"gold","when":"3-2/4-2","desc":"곡궁, 공속 12%"},{"n":"황금 드래곤","tier":"gold","when":"비활성화","desc":"거물의 갑옷 1개(2슬롯, 체력 700·내구력 20%)"},{"n":"회복의 구 II","tier":"gold","when":"3-2/4-2","desc":"적 사망 시 가장 가까운 아군 체력 575 회복"},{"n":"후반 성장","tier":"gold","when":"2-1","desc":"전투 라운드마다 경험치 2, 5단계 아군 체력 12%·공속 12%"},{"n":"후방 설계도","tier":"gold","when":"2-1","desc":"3단계 비탱커·해당 상징"},{"n":"휴대용 대장간","tier":"gold","when":"2-1/3-2/4-2","desc":"유물 4중 1선택"},{"n":"간이 대장간","tier":"prismatic","when":"2-1","desc":"즉시 및 9전투마다 유물 모루"},{"n":"거대하고 강력한","tier":"prismatic","when":"3-2/4-2","desc":"크기 커져 체력 200·최대 체력 10%"},{"n":"거래 중심지","tier":"prismatic","when":"4-2","desc":"새로고침 16회, 라운드마다 3회"},{"n":"경품 추첨","tier":"prismatic","when":"2-1","desc":"2골드·동전(앞:찬란한 상자, 뒤:완성 아이템 모루 2개)"},{"n":"경품 추첨+","tier":"prismatic","when":"3-2","desc":"3골드·동전"},{"n":"경품 추첨++","tier":"prismatic","when":"4-2","desc":"6골드·동전"},{"n":"고귀한 모험","tier":"prismatic","when":"2-1","desc":"2단계 3명, 둘 3성 시 전리품 구·하급 복제기"},{"n":"구독 서비스","tier":"prismatic","when":"2-1","desc":"스테이지마다 4단계 4명 상점·6골드"},{"n":"군체의 심장","tier":"prismatic","when":"2-1","desc":"3성 챔피언 군체 유충 포함, 9레벨 3성 6명 시 태고족 우두머리"},{"n":"극진한 헌신","tier":"prismatic","when":"2-1","desc":"무작위 상징, 스테이지마다 상징 특성 1성 챔피언·3골드"},{"n":"기다림의 미학 II","tier":"prismatic","when":"2-1","desc":"무작위 2단계 2명, 매 라운드 복사본"},{"n":"꼬꼬마 거인","tier":"prismatic","when":"3-2","desc":"전투마다 플레이어 체력 2·2골드·전략가 이속 증가, 10골드"},{"n":"남작의 소굴","tier":"prismatic","when":"3-2/4-2","desc":"무작위 탱커 아이템, 8초 후 매초 공격력·주문력 5%"},{"n":"넘치는 대검","tier":"prismatic","when":"3-2/4-2","desc":"B.F. 대검 4개, 공속 +4% 제공"},{"n":"넘치는 지팡이","tier":"prismatic","when":"3-2/4-2","desc":"쓸데없이 큰 지팡이 4개, 공속 +5% 제공"},{"n":"넘치는 허리띠","tier":"prismatic","when":"3-2/4-2","desc":"거인의 허리띠 4개, 체력 +85 제공"},{"n":"달콤한 간식","tier":"prismatic","when":"3-2/4-2","desc":"유물 모루, 장착 아이템당 체력 16"},{"n":"더욱 치명적인 모자","tier":"prismatic","when":"2-1","desc":"라바돈의 죽음모자, 마나 재생 1·처치 관여마다 주문력 1%"},{"n":"도둑 무리 II","tier":"prismatic","when":"2-1","desc":"도적의 장갑 2개, 6전투 후 1개 더"},{"n":"도둑 무리 II+","tier":"prismatic","when":"3-2","desc":"도적의 장갑 2개, 5전투 후 1개 더"},{"n":"도둑 무리 II++","tier":"prismatic","when":"4-2","desc":"도적의 장갑 2개, 3전투 후 1개 더"},{"n":"돈 폭풍","tier":"prismatic","when":"4-2","desc":"라운드마다 7골드"},{"n":"레벨 업!","tier":"prismatic","when":"2-1","desc":"경험치 구매 시 추가 2, 즉시 6"},{"n":"보석 연꽃 II","tier":"prismatic","when":"3-2/4-2","desc":"치명타 확률 25%·치명타 피해 10%·정밀"},{"n":"붉고 푸른 효과","tier":"prismatic","when":"3-2/4-2","desc":"붉은 덩굴정령·푸른 파수꾼·챔피언 복제기"},{"n":"빛비늘 정수","tier":"prismatic","when":"2-1","desc":"거물의 갑옷, 7라운드 후 도박꾼의 칼날"},{"n":"삼인방 II","tier":"prismatic","when":"3-2/4-2","desc":"3단계 3명·공속 5%, 무작위 3단계 3명 체력 300·공속 25%"},{"n":"생일 선물","tier":"prismatic","when":"2-1","desc":"레벨업마다 2성 챔피언·1골드(상점 레벨-4)"},{"n":"성취","tier":"prismatic","when":"3-2","desc":"9레벨 도달 시 10레벨·새로고침 8회·경험치 10"},{"n":"신병","tier":"prismatic","when":"3-2","desc":"팀 규모 +1, 4단계 챔피언 1명"},{"n":"신병+","tier":"prismatic","when":"4-2","desc":"팀 규모 +1, 4단계 챔피언 2명"},{"n":"역전의 서막","tier":"prismatic","when":"2-1","desc":"잃은 플레이어 체력당 체력 4·공속 0.4%"},{"n":"영원한 브론즈 II","tier":"prismatic","when":"3-2/4-2","desc":"브론즈 특성당 피해 증폭 2%·방어력·마저 4"},{"n":"영혼 각성","tier":"prismatic","when":"3-2/4-2","desc":"전투 시작 10초 매초 공격력·주문력 1.5%, 최대 시 12% 추가 고정 피해"},{"n":"예상된 예상 밖의 결과","tier":"prismatic","when":"2-1","desc":"스테이지마다 주사위 3개 총합 보상"},{"n":"우르프의 꾸러미","tier":"prismatic","when":"4-2","desc":"뒤집개·무작위 조합 아이템 3개·5골드"},{"n":"유연함","tier":"prismatic","when":"2-1","desc":"무작위 상징, 스테이지마다 상징, 장착 상징당 체력 30"},{"n":"응당한 대가","tier":"prismatic","when":"2-1","desc":"6레벨·경험치 8, 추후 증강 자동 선택"},{"n":"응징","tier":"prismatic","when":"비활성화","desc":"정의의 손길 2개, 정밀·치명타 확률 25%"},{"n":"작지만 치명적인","tier":"prismatic","when":"3-2/4-2","desc":"크기 작아져 공속·이속 33%"},{"n":"장기 투자","tier":"prismatic","when":"2-1","desc":"이자 없고 16골드, 라운드 시작 경험치 4"},{"n":"저주받은 왕관","tier":"prismatic","when":"2-1/3-2","desc":"팀 규모 +2·내구력 4%, 패배 시 피해 두 배"},{"n":"전략가의 주방","tier":"prismatic","when":"2-1","desc":"무작위 상징, 3라운드 후 전략가의 망토"},{"n":"조합 아이템 강탈","tier":"prismatic","when":"4-2","desc":"6전투 후 모든 조합 아이템 1개씩, 무작위 조합 아이템"},{"n":"진형 유지","tier":"prismatic","when":"3-2/4-2","desc":"후방 2열 아군 전방 아군당 주문력 9%·공격력 8%"},{"n":"찬란한 장난꾸러기","tier":"prismatic","when":"3-2/4-2","desc":"장난꾸러기의 장갑(라운드마다 찬란한 아이템 2개)"},{"n":"최적화","tier":"prismatic","when":"3-2","desc":"황금 아이템 제거기·무작위 조합 아이템 4개"},{"n":"출세가도","tier":"prismatic","when":"2-1/3-2/4-2","desc":"경험치 비용 1 감소, 레벨업마다 체력 2·새로고침 1회"},{"n":"치명적인 칼날","tier":"prismatic","when":"2-1","desc":"죽음의 검, 처치 관여마다 공격력 1% 영구"},{"n":"친구 만들기","tier":"prismatic","when":"2-1","desc":"무작위 3성 1단계 챔피언, 10골드"},{"n":"투자+","tier":"prismatic","when":"3-2","desc":"26골드, 50골드 초과 10골드마다 새로고침(최대 80골드)"},{"n":"투자++","tier":"prismatic","when":"4-2","desc":"40골드, 50골드 초과 10골드마다 새로고침(최대 80골드)"},{"n":"특별 맞춤 설정 II","tier":"prismatic","when":"4-2","desc":"행운의 아이템 상자 2개·자석 제거기·7골드"},{"n":"특성 나무","tier":"prismatic","when":"2-1","desc":"무작위 상징 3개·재조합기·2골드"},{"n":"특성 나무+","tier":"prismatic","when":"3-2","desc":"무작위 상징 3개·재조합기·4골드"},{"n":"파묻힌 보물","tier":"prismatic","when":"2-1","desc":"5라운드 무작위 조합 아이템 1개"},{"n":"판도라의 아이템 III","tier":"prismatic","when":"2-1/3-2","desc":"대기석 아이템 무작위, 무작위 찬란한 아이템 1개"},{"n":"프리즘 티켓","tier":"prismatic","when":"2-1/3-2","desc":"새로고침마다 45% 무료 새로고침"},{"n":"하나로 뭉치는 거지","tier":"prismatic","when":"2-1","desc":"무작위 상징·완성 아이템 모루, 상징 특성 공유 아군 공속 30%"},{"n":"행운의 장갑","tier":"prismatic","when":"2-1","desc":"도적의 장갑 최적 아이템, 연습용 장갑 2개·4골드"},{"n":"행운의 장갑+","tier":"prismatic","when":"3-2/4-2","desc":"도적의 장갑 추천 아이템, 연습용 장갑 2개, 4전투 후 1개 더"},{"n":"헤지 펀드","tier":"prismatic","when":"2-1","desc":"22골드, 최대 이자 10골드"},{"n":"헤지 펀드+","tier":"prismatic","when":"3-2","desc":"30골드, 최대 이자 10골드"},{"n":"현명한 소비","tier":"prismatic","when":"2-1/3-2","desc":"경험치 구매 불가, 새로고침 골드 소모마다 경험치 2"},{"n":"호화로운 정기 구독","tier":"prismatic","when":"3-2","desc":"5단계·1단계 2성·7골드 꾸러미, 2스테이지 반복"},{"n":"혼돈의 부름","tier":"prismatic","when":"4-2","desc":"강력한 무작위 보상"},{"n":"황금 알","tier":"prismatic","when":"4-2","desc":"11턴 후 부화 황금 알(승리 시 가속)"},{"n":"흥청망청","tier":"prismatic","when":"2-1","desc":"레벨업 시 레벨+1 새로고침, 2골드"},{"n":"힘을 실은 제련","tier":"prismatic","when":"2-1","desc":"무작위 유물, 체력 30 이하 시 유물 3개 추가"}]};
+
+</script>
+<script>
+/* =============================================================
+   ★★★ DATA — 여기만 수정하면 앱 내용이 바뀝니다 ★★★
+   (코딩 몰라도 됩니다. "따옴표 안의 글자"만 바꾸세요)
+   ============================================================= */
+
+const PATCH = "Set 17: Space Gods · 패치 17.8 기준 (2026-08-07)";
+
+/* --- 1) 추천 덱 (Set 17, 패치 17.8 메타) ---
+   tier: S / A / B / C  (강한 순서)
+   level: 주력 레벨,  playstyle: 운영 방식
+   carries: 핵심 캐리 + 아이템,  comp: 나머지 조합,  augments: 추천 증강 */
+const DECKS = [
+  {
+    name: "N.O.V.A. 벡스 파스트 9",
+    tier: "S", level: "9 레벨링", playstyle: "파스트 9 · 5코스트 유연 운영",
+    carries: [
+      { unit: "벡스 (Vex, AP 메인)", items: ["구인수의 격노검", "라바돈의 죽음모자", "보석 건틀릿"] },
+      { unit: "그레이브즈 / 피오라 (AD 대체 캐리)", items: ["구인수의 격노검", "거인의 결의", "최후의 속삭임"] },
+    ],
+    comp: ["트위스티드 페이트(초반 아이템 홀더)", "모르가나(4코 탱커)", "5코스트 유닛들", "N.O.V.A.", "여행자"],
+    augments: ["경제/체력 유지형 오프너"],
+    notes: "체력 80+ 유지하며 경제 최우선 → 9렙 급하게. 초반엔 트페에 벡스 아이템 미리 얹고 벡스 나오면 그대로 이전. 9렙에서 5코 롤, 벡스에 구인수 사실상 필수.",
+  },
+  {
+    name: "메카 (아우렐리온 솔)",
+    tier: "S", level: "8 파스트", playstyle: "파스트 8 · 6메카 변신 원트릭",
+    carries: [
+      { unit: "마이티 메크 (탱커 · 딜 원천)", items: ["가고일 돌갑옷", "워모그의 갑옷", "태양불꽃 망토"] },
+      { unit: "아우렐리온 솔 (메카 폼 하이퍼캐리)", items: ["공속템 금지", "AP · 방어 위주"] },
+    ],
+    comp: ["우르곳", "아우렐리온 솔", "마이티 메크", "탐 켄치(복사)", "메카/서포트"],
+    augments: [],
+    notes: "8렙 최대한 빨리 → 메카 3유닛(우르곳·ASol·마이티 메크) 확보 시 6메카 발동. 탐 켄치로 복사해 2성 빠르게. ASol엔 공속템(나셔 등) 금지, 메크에 방어·체력템으로 불사 만들기.",
+  },
+  {
+    name: "암흑의 별 진 (스페이스 오페라)",
+    tier: "A", level: "8 파스트", playstyle: "파스트 8 · 6 암흑의 별 폭딜",
+    carries: [
+      { unit: "진 (Jhin, 5코 캐리)", items: ["무한의 대검", "쇼진의 창", "정의의 손길"] },
+      { unit: "카르마 / 자야 (딜템 우선)", items: ["최고 딜템 먼저 분배"] },
+    ],
+    comp: ["진", "자야", "누누", "카르마", "리븐", "일라오이"],
+    augments: ["암흑의 별 상징", "여행자/탱크/저격수 상징"],
+    notes: "6 암흑의 별 코어. 진은 적에게서 가장 먼 코너에 배치(저격수·거리 비례 증폭). 카르마·자야에게 딜템 먼저, 진은 2차 캐리로 마무리. 상징 가치 매우 높음.",
+  },
+  {
+    name: "리산드라 리롤",
+    tier: "A", level: "6 → 8 리롤", playstyle: "1코스트 리롤 · 초가스 동반 3성",
+    carries: [
+      { unit: "리산드라 (Lissandra, 1코)", items: ["보석 건틀릿", "쇼진의 창", "공허의 지팡이"] },
+      { unit: "초가스 (Cho'Gath, 3성 목표)", items: ["탱커템"] },
+    ],
+    comp: ["리산드라", "초가스", "바루스(서포터 오프너)", "암흑의 별/서포트"],
+    augments: [],
+    notes: "초반 초가스2·리산드라2로 연승. 4렙에서 60→30골 롤로 1코 확보. 3스테이지 슬로우롤로 리산드라·초가스 3성. 3성 뜨면 6렙, 대부분 8렙에서 마무리. 바루스 서포터 오프너면 안정성↑.",
+  },
+  {
+    name: "사미라 리롤",
+    tier: "B", level: "7 리롤", playstyle: "3코스트 리롤 · 아이템 의존형",
+    carries: [
+      { unit: "사미라 (Samira, 3코)", items: ["최후의 속삭임", "거인의 결의", "피바라기"] },
+      { unit: "오른 (Ornn, 탱커)", items: ["방어템"] },
+    ],
+    comp: ["사미라", "오른", "누누와 윌럼프", "퓨처 워리어 2", "프론트"],
+    augments: ["단조사·조기 교육 등 경제 증강 우선"],
+    notes: "⚠️ 사미라에 무한의 대검 금지(다른 검 아이템). 7렙 30골 위로 롤. 오른은 앞 중앙 어그로, 사미라는 백라인 안전하게 램핑. 최후의 속삭임은 후반 자야/진으로 이전 가능.",
+  },
+  {
+    name: "별돌보미 자야",
+    tier: "S", level: "8 파스트", playstyle: "파스트 8 · 자야 평타 캐리",
+    carries: [
+      { unit: "자야 (Xayah, 메인 캐리)", items: ["구인수의 격노검", "크라켄의 분노", "거인 학살자"] },
+      { unit: "진 (후반 2차 캐리)", items: ["AD 딜템"] },
+    ],
+    comp: ["리븐", "자야", "누누", "진", "별돌보미 프론트"],
+    augments: ["아이템 증강 우선"],
+    notes: "별돌보미 별자리 선택 중요(2-1 산 / 뱀 / 멧돼지 / 제단 / 분수). 자야는 BIS 의존 높음(붉은 덩굴정령+크라켄 선호). 파스트8, 4-1 롤다운으로 자야2 + 4코 탱커(탐 켄치/누누/라무스).",
+  },
+  {
+    name: "Capped & Loaded (AD 파스트9)",
+    tier: "S", level: "9 레벨링", playstyle: "파스트 9 · AD 유연 캐리",
+    carries: [
+      { unit: "피오라 / 그레이브즈 / 벡스 (유연 캐리)", items: ["구인수의 격노검", "거인 학살자", "최후의 속삭임"] },
+    ],
+    comp: ["피오라", "그레이브즈", "벡스", "누누", "케이틀린(그레이브즈 홀더)", "탈론(피오라 홀더)"],
+    augments: ["경제/연승형 오프너"],
+    notes: "9렙 공격적으로. 2-1 4렙 연승, 3-2 6렙 유지. 케이틀린이 그레이브즈 아이템, 탈론이 피오라 아이템 홀더. 경제 유지하며 9렙 5코 확보.",
+  },
+  {
+    name: "카르마 여행자 (미러 메이헴)",
+    tier: "A", level: "8 파스트", playstyle: "파스트 8 · 6여행자 실드+딜증폭",
+    carries: [
+      { unit: "카르마 (Karma, 4코 캐리)", items: ["푸른 파수꾼", "보석 건틀릿", "라바돈의 죽음모자"] },
+      { unit: "아우렐리온 솔 (2차 캐리)", items: ["보석 건틀릿", "AP 딜템"] },
+    ],
+    comp: ["르블랑", "카르마", "모르가나", "밉시", "파이크", "오로라", "마이티 메크"],
+    augments: ["여행자 상징(6여행자)"],
+    notes: "파스트8. 여행자 = 전열 실드 + 후열 딜증폭. 6여행자는 여행자 상징 1개 필요. 카르마에 최고 AP템, 저코 여행자(밉시·파이크)로 특성 유지.",
+  },
+];
+
+/* --- 1-b) 덱별 레벨 가이드 · 배치도 ---
+   steps: [{s:"스테이지", t:"할 일"}],  board: {corner:'left'|'right', back:[후열], mid:[중열], front:[전열], note}
+   (배치는 표준 포지션 가이드 — 캐리 백라인 코너, 탱커 전열) */
+const DECK_GUIDE = {
+  "N.O.V.A. 벡스 파스트 9": {
+    steps:[
+      {s:"1-2~2-1", t:"강한 아이템 오프너로 연승. 벡스 아이템은 트페 등 홀더에 미리 장착."},
+      {s:"2-5~3-2", t:"레벨업 최우선(경제 되면). 체력 80+·50골 이자 유지."},
+      {s:"4-1", t:"8렙 도달, 모르가나 등 4코 탱커로 보드 안정."},
+      {s:"5-1~6-1", t:"9렙 찍고 롤다운 → 벡스·5코 2성. 벡스에 구인수 필수."},
+    ],
+    board:{corner:'right', back:["벡스","그레이브즈"], mid:["트위스티드 페이트"], front:["모르가나","누누"],
+      note:"벡스 백라인 코너, 탱커 전열. 암살자 상대엔 반대 코너로 스왑."}
+  },
+  "메카 (아우렐리온 솔)": {
+    steps:[
+      {s:"1-2~2-1", t:"메크·ASol 아이템 홀더 확보, 연승 지향."},
+      {s:"3-2", t:"레벨업 최우선, 경제 유지."},
+      {s:"4-1", t:"8렙 → 메카 3유닛(우르곳·ASol·마이티 메크)+탐 켄치 복사로 6메카."},
+      {s:"4-2~5-1", t:"롤다운 → ASol·메크 2성. ASol 공속템 금지."},
+    ],
+    board:{corner:'left', back:["아우렐리온 솔"], mid:["우르곳","탐 켄치"], front:["마이티 메크"],
+      note:"마이티 메크 전열 중앙(어그로), ASol 뒤에서 변신 램핑."}
+  },
+  "암흑의 별 진 (스페이스 오페라)": {
+    steps:[
+      {s:"1-2~2-1", t:"딜템 홀더 확보. 암흑의 별/저격수 상징 있으면 최우선."},
+      {s:"3-2", t:"레벨업하며 6 암흑의 별 목표."},
+      {s:"4-1", t:"8렙, 카르마·자야 2성 + 딜템 분배."},
+      {s:"5-1~", t:"진(5코) 확보하면 딜템 이전, 2차 캐리로 마무리."},
+    ],
+    board:{corner:'right', back:["진","자야","카르마"], mid:["리븐"], front:["일라오이","누누"],
+      note:"진은 적에게서 가장 먼 코너(저격수 거리 증폭). 자야·카르마 백라인, 탱커 전열."}
+  },
+  "리산드라 리롤": {
+    steps:[
+      {s:"2-1", t:"초가스2·리산드라2로 연승. 아이템 슬램(방치 금지)."},
+      {s:"3-1", t:"4렙에서 60→30골 롤로 1코 보강."},
+      {s:"3-2~3-5", t:"슬로우롤(50골 위) → 리산드라·초가스 3성."},
+      {s:"3성 후", t:"6렙, 대부분 8렙에서 마무리."},
+    ],
+    board:{corner:'left', back:["리산드라"], mid:["바루스"], front:["초가스"],
+      note:"초가스 전열 탱, 리산드라 백라인 코너. 바루스 서포터로 안정성↑."}
+  },
+  "사미라 리롤": {
+    steps:[
+      {s:"2-1", t:"아이템 오프너. 사미라 아이템(⚠️무한의 대검 금지)."},
+      {s:"3-2", t:"7렙 향해 레벨, 경제 관리."},
+      {s:"4-1", t:"7렙 30골 위로 롤 → 사미라 3성."},
+      {s:"후반", t:"오른 앞 어그로, 사미라 안전한 백라인 램핑."},
+    ],
+    board:{corner:'right', back:["사미라"], mid:["누누와 윌럼프"], front:["오른"],
+      note:"오른 앞 중앙 어그로, 사미라 반대편 백라인. 최후의 속삭임은 후반 이전 가능."}
+  },
+  "별돌보미 자야": {
+    steps:[
+      {s:"2-1", t:"별돌보미 별자리 선택(산 등). 자야 BIS(붉은 덩굴정령+크라켄) 지향."},
+      {s:"3-2", t:"레벨업 우선, 강한 보드 유지."},
+      {s:"4-1", t:"롤다운 → 자야2 + 4코 탱커(탐 켄치/누누/라무스)."},
+      {s:"후반", t:"자야 백라인 코너, 진 2차 캐리."},
+    ],
+    board:{corner:'left', back:["자야","진"], mid:["리븐"], front:["누누","탐 켄치"],
+      note:"자야 백라인 코너(평타 안전), 진 옆에. 탱커 전열."}
+  },
+  "Capped & Loaded (AD 파스트9)": {
+    steps:[
+      {s:"2-1", t:"4렙 연승, AD 오프너. 홀더(케이틀린·탈론)에 아이템."},
+      {s:"3-2", t:"6렙 유지, 경제 관리."},
+      {s:"4-1~5-1", t:"체력 관리하며 8렙까지 레벨업."},
+      {s:"6-1", t:"9렙 → 피오라/그레이브즈/벡스 2성, 5코 보강."},
+    ],
+    board:{corner:'right', back:["벡스","그레이브즈"], mid:["케이틀린","탈론"], front:["피오라","누누"],
+      note:"주 캐리 백라인 코너. 피오라는 전열 브루저로 활용 가능."}
+  },
+  "카르마 여행자 (미러 메이헴)": {
+    steps:[
+      {s:"2-1", t:"카르마 AP 아이템 홀더. 여행자 상징 노림."},
+      {s:"3-2", t:"레벨업 우선, 저코 여행자(밉시·파이크) 유지."},
+      {s:"4-1", t:"8렙 → 6여행자(상징 1개), 카르마 2성."},
+      {s:"후반", t:"카르마 백라인, 마이티 메크 전열."},
+    ],
+    board:{corner:'left', back:["카르마","오로라"], mid:["르블랑","밉시","파이크"], front:["마이티 메크","모르가나"],
+      note:"카르마 백라인 코너, 마이티 메크 전열. 저코 여행자로 6특성 유지."}
+  },
+};
+
+/* --- 2) 아이템 조합 (표준 조합표) ---
+   components: 기본 아이템,  combos: {재료1 + 재료2 → 완성 아이템} */
+const COMPONENTS = ["B.F. 대검","곡궁","쓸데없이 큰 지팡이","여신의 눈물","쇠사슬 조끼","음전자 망토","거인의 허리띠","연습용 장갑","뒤집개(상징)"];
+const COMBOS = [
+  { recipe:"B.F. 대검 + B.F. 대검", result:"죽음의 검" },
+  { recipe:"B.F. 대검 + 연습용 장갑", result:"무한의 대검" },
+  { recipe:"B.F. 대검 + 곡궁", result:"거인 학살자" },
+  { recipe:"B.F. 대검 + 여신의 눈물", result:"쇼진의 창" },
+  { recipe:"B.F. 대검 + 쓸데없이 큰 지팡이", result:"마법공학 총검" },
+  { recipe:"B.F. 대검 + 쇠사슬 조끼", result:"수호자 파괴자" },
+  { recipe:"B.F. 대검 + 음전자 망토", result:"피바라기" },
+  { recipe:"B.F. 대검 + 거인의 허리띠", result:"스테락의 도전" },
+  { recipe:"곡궁 + 곡궁", result:"고속 연사포" },
+  { recipe:"곡궁 + 쓸데없이 큰 지팡이", result:"구인수의 격노검" },
+  { recipe:"곡궁 + 여신의 눈물", result:"정전기 단검" },
+  { recipe:"곡궁 + 쇠사슬 조끼", result:"거인의 결의" },
+  { recipe:"곡궁 + 음전자 망토", result:"룬아안의 허리케인" },
+  { recipe:"곡궁 + 거인의 허리띠", result:"나셔의 이빨" },
+  { recipe:"곡궁 + 연습용 장갑", result:"최후의 속삭임" },
+  { recipe:"쓸데없이 큰 지팡이 + 쓸데없이 큰 지팡이", result:"라바돈의 죽음모자" },
+  { recipe:"쓸데없이 큰 지팡이 + 여신의 눈물", result:"대천사의 지팡이" },
+  { recipe:"쓸데없이 큰 지팡이 + 쇠사슬 조끼", result:"왕관 근위대" },
+  { recipe:"쓸데없이 큰 지팡이 + 음전자 망토", result:"이온 충격기" },
+  { recipe:"쓸데없이 큰 지팡이 + 거인의 허리띠", result:"모렐로노미콘" },
+  { recipe:"쓸데없이 큰 지팡이 + 연습용 장갑", result:"보석 건틀릿" },
+  { recipe:"여신의 눈물 + 여신의 눈물", result:"푸른 파수꾼" },
+  { recipe:"여신의 눈물 + 쇠사슬 조끼", result:"수호자의 맹세" },
+  { recipe:"여신의 눈물 + 음전자 망토", result:"적응형 투구" },
+  { recipe:"여신의 눈물 + 거인의 허리띠", result:"구원" },
+  { recipe:"여신의 눈물 + 연습용 장갑", result:"정의의 손길" },
+  { recipe:"쇠사슬 조끼 + 쇠사슬 조끼", result:"가시 갑옷" },
+  { recipe:"쇠사슬 조끼 + 음전자 망토", result:"가고일 돌갑옷" },
+  { recipe:"쇠사슬 조끼 + 거인의 허리띠", result:"태양불꽃 망토" },
+  { recipe:"쇠사슬 조끼 + 연습용 장갑", result:"굳건한 심장" },
+  { recipe:"음전자 망토 + 음전자 망토", result:"용의 발톱" },
+  { recipe:"음전자 망토 + 거인의 허리띠", result:"이븐샤우드" },
+  { recipe:"음전자 망토 + 연습용 장갑", result:"수은" },
+  { recipe:"거인의 허리띠 + 거인의 허리띠", result:"워모그의 갑옷" },
+  { recipe:"연습용 장갑 + 연습용 장갑", result:"도적의 장갑" },
+];
+
+/* --- 3) 추천 증강 (패치 17.8 상위 픽) ---
+   type: prismatic(3티어) / gold(2티어) / silver(1티어)
+   ※ 정확한 수치 효과는 인게임 설명을 참고하세요. */
+const AUGMENTS = [
+  { name:"치명적 속도",   type:"prismatic", cat:"combat", desc:"공격 속도 프리즘 증강. 평타 캐리(자야 등)에 강함." },
+  { name:"전장의 교향곡", type:"prismatic", cat:"combat", desc:"정복자+치명적 속도 결합 프리즘 증강." },
+  { name:"단조사",       type:"gold",      cat:"combat", desc:"국내 상위 추천 증강 — 나오면 우선 선택." },
+  { name:"조기 교육",     type:"gold",      cat:"level",  desc:"경험치 증강. 파스트 레벨링덱에서 강력." },
+];
+
+/* --- 4) 특성 활성화 구간 (Set 17 주요 특성) --- */
+const TRAITS = [
+  { name:"암흑의 별 (Dark Star)", breaks:"2 / 6 / 9 / 10", desc:"블랙홀을 생성해 체력 낮은 적을 끌어당기고 처형. 고구간일수록 유닛이 초거대화(보너스 강화 + 추가 블랙홀)." },
+  { name:"메카 (Mecha)", breaks:"2 / 4", desc:"변신 토큰으로 얼티밋 폼 변신(+체력, 강화 스킬, 보드 2칸 차지·특성 2회 카운트)." },
+  { name:"저격수 (Sniper)", breaks:"거리 비례", desc:"피해 증폭, 대상이 멀수록 증가. 진은 가장 먼 코너에 배치." },
+  { name:"여행자 (Voyager)", breaks:"능력치 2배", desc:"여행자 유닛은 능력치를 두 배로 얻음(카르마 등)." },
+  { name:"별돌보미 (Stargazer)", breaks:"별자리 선택", desc:"7가지 별자리(산·뱀·멧돼지·제단·분수 등)에 따라 유닛 구조·플레이가 달라짐." },
+];
+
+/* =============================================================
+   ↓↓↓ 아래는 화면을 그리는 코드입니다. 건드릴 필요 없어요. ↓↓↓
+   ============================================================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+document.getElementById('patchInfo').textContent = PATCH;
+
+// 탭 전환
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('#view-'+t.dataset.view).classList.add('active');
+    window.scrollTo(0,0);
+  };
+});
+
+// 덱 렌더
+const SHORT = {"아우렐리온 솔":"ASol","누누와 윌럼프":"누누","트위스티드 페이트":"트페","마이티 메크":"메크"};
+const shortName = n => SHORT[n] || n;
+function makeBoard(b){
+  const rows=[Array(7).fill(null),Array(7).fill(null),Array(7).fill(null),Array(7).fill(null)];
+  const put=(r,list,role,side)=>{
+    if(!list||!list.length) return;
+    const n=list.length; let cols;
+    if(side==='left') cols=list.map((_,i)=>i);
+    else if(side==='right') cols=list.map((_,i)=>6-i);
+    else { const st=Math.max(0,Math.floor((7-n)/2)); cols=list.map((_,i)=>st+i); }
+    list.forEach((name,i)=>{ const c=cols[i]; if(c>=0&&c<7) rows[r][c]={name, role, carry: role==='back'&&i===0}; });
+  };
+  const side=b.corner==='right'?'right':'left';
+  put(0, b.back, 'back', side);
+  put(1, b.mid||[], 'mid', side);
+  put(3, b.front||[], 'tank', 'center');
+  return rows;
+}
+function boardHtml(b){
+  const rows=makeBoard(b);
+  let h=`<div class="board-diagram">`;
+  rows.forEach((row,ri)=>{
+    h+=`<div class="brow ${ri%2?'odd':''}">`+row.map(cell=>
+      cell ? `<div class="hex ${cell.carry?'carry':cell.role}">${cell.carry?'★':''}${esc(shortName(cell.name))}</div>`
+           : `<div class="hex empty"></div>`).join('')+`</div>`;
+  });
+  h+=`</div><div class="board-legend">위 = 후열(캐리·딜러) · 아래 = 전열(탱커) · 적은 아래쪽 ▼</div>`;
+  return h;
+}
+function guideHtml(name){
+  const g=DECK_GUIDE[name]; if(!g) return '';
+  let h=`<div class="label" style="margin-top:8px">스테이지별 운영</div>`;
+  h+=g.steps.map(s=>`<div class="gstep"><span class="gstage">${esc(s.s)}</span><span class="gtext">${esc(s.t)}</span></div>`).join('');
+  h+=`<div class="label" style="margin-top:10px">배치도 <span class="sub-hint">— 표준 포지션</span></div>`;
+  h+=boardHtml(g.board);
+  if(g.board.note) h+=`<div class="meta" style="margin-top:6px">📍 ${esc(g.board.note)}</div>`;
+  return h;
+}
+
+function renderDecks(q=""){
+  q=q.trim().toLowerCase();
+  const list = DECKS.filter(d=>{
+    if(!q) return true;
+    const hay=(d.name+d.playstyle+d.carries.map(c=>c.unit+c.items.join()).join()+d.comp.join()).toLowerCase();
+    return hay.includes(q);
+  });
+  $('#deckList').innerHTML = list.length ? list.map(d=>`
+    <div class="card">
+      <div class="card-head">
+        <div class="deck-name">${esc(d.name)}</div>
+        <span class="tier ${d.tier}">${d.tier}</span>
+      </div>
+      <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+      <div class="label">핵심 캐리</div>
+      ${d.carries.map(c=>`
+        <div class="carry">
+          <div class="carry-name">${esc(c.unit)}</div>
+          <div class="items">${c.items.map(i=>`<span class="item">${esc(i)}</span>`).join('')}</div>
+        </div>`).join('')}
+      <div class="label">조합</div>
+      <div class="chips">${d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('')}</div>
+      ${d.augments?.length?`<div class="label">추천 증강</div><div class="chips">${d.augments.map(a=>`<span class="chip star">${esc(a)}</span>`).join('')}</div>`:''}
+      ${d.notes?`<div class="meta" style="margin-top:10px">💡 ${esc(d.notes)}</div>`:''}
+      ${DECK_GUIDE[d.name]?`<details class="dguide"><summary>레벨 가이드 · 배치도</summary>${guideHtml(d.name)}</details>`:''}
+    </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
+}
+
+/* ===== 도감 (챔피언·특성·아이템·증강) — 국내 공식 데이터 ===== */
+const DB = window.TFTDB || {champions:[],traits:[],items:[],augments:[]};
+const TIER_KO = {prismatic:'프리즘', gold:'골드', silver:'실버'};
+let dogamSub = 'champions';
+let dogamFilter = '';
+
+function dogamFilterOptions(){
+  if(dogamSub==='champions') return [['','전체'],['1','1코'],['2','2코'],['3','3코'],['4','4코'],['5','5코']];
+  if(dogamSub==='traits')    return [['','전체'],['오리진','오리진'],['클래스','클래스']];
+  if(dogamSub==='augments')  return [['','전체'],['prismatic','프리즘'],['gold','골드'],['silver','실버']];
+  if(dogamSub==='items')     return [['조합표','조합표'],['완성 아이템','완성'],['유물 아이템','유물'],['찬란한(강화) 아이템','찬란'],['상징(엠블럼)','상징'],['초능력 아이템','초능력'],['특수/영웅 아이템','특수'],['지휘 모드(소나)','소나'],['기본(조합) 아이템','기본']];
+  return [];
+}
+function renderDogamFilters(){
+  $('#dogamFilters').innerHTML = dogamFilterOptions().map(([v,l])=>
+    `<span class="pick ${String(dogamFilter)===String(v)?'on':''}" data-f="${esc(v)}">${esc(l)}</span>`).join('');
+}
+function comboCards(q){
+  const legend = `<div class="label">기본 아이템 (조합 재료)</div><div class="comp-legend">${COMPONENTS.map(c=>`<span class="comp">${esc(c)}</span>`).join('')}</div>`;
+  const list = COMBOS.filter(c=> !q || (c.result+c.recipe).toLowerCase().includes(q));
+  return legend + `<div class="combo-grid">`+ (list.length? list.map(c=>`<div class="combo"><div class="result">${esc(c.result)}</div><div class="recipe">${esc(c.recipe)}</div></div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`) + `</div>`;
+}
+function renderDogam(){
+  const q=($('#dogamSearch').value||'').trim().toLowerCase();
+  const R=$('#dogamResult'); R.classList.remove('grid');
+  let html='', count=0;
+  if(dogamSub==='champions'){
+    R.classList.add('grid');
+    let list=DB.champions.filter(c=> (!dogamFilter || c.cost===+dogamFilter) && (!q || (c.n+c.e+c.traits+c.items).toLowerCase().includes(q)))
+      .sort((a,b)=>a.cost-b.cost || a.n.localeCompare(b.n,'ko'));
+    count=list.length;
+    html=list.map(c=>`<div class="dcard"><div class="dh"><span class="cost c${c.cost}">${c.cost}코</span><span class="nm">${esc(c.n)}</span><span class="en">${esc(c.e)}</span></div><div class="kv"><b>특성</b> ${esc(c.traits||'-')}</div>${c.items?`<div class="kv"><b>삼신기</b> ${esc(c.items)}</div>`:''}</div>`).join('');
+  } else if(dogamSub==='traits'){
+    R.classList.add('grid');
+    let list=DB.traits.filter(t=> (!dogamFilter || t.type===dogamFilter) && (!q || (t.n+t.e+t.desc).toLowerCase().includes(q)));
+    count=list.length;
+    html=list.map(t=>`<div class="dcard"><div class="dh"><span class="nm">${esc(t.n)}</span><span class="ttype">${esc(t.type)}</span><span class="en">${esc(t.e)}</span></div>${t.br?`<div class="kv"><b>구간</b> ${esc(t.br)}</div>`:''}<div class="ds">${esc(t.desc||'')}</div></div>`).join('');
+  } else if(dogamSub==='augments'){
+    R.classList.add('grid');
+    const ord={prismatic:0,gold:1,silver:2};
+    let list=DB.augments.filter(a=> (!dogamFilter || a.tier===dogamFilter) && (!q || (a.n+a.desc).toLowerCase().includes(q)))
+      .sort((a,b)=>ord[a.tier]-ord[b.tier] || a.n.localeCompare(b.n,'ko'));
+    count=list.length;
+    html=list.map(a=>`<div class="aug ${a.tier}"><span class="aug-name">${esc(a.n)}</span><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span>${a.when?`<span class="seg" style="margin-left:6px">${esc(a.when)}</span>`:''}<div class="aug-desc">${esc(a.desc||'')}</div></div>`).join('');
+  } else if(dogamSub==='items'){
+    if(dogamFilter==='조합표'){ $('#dogamCount').textContent=''; R.innerHTML=comboCards(q); return; }
+    R.classList.add('grid');
+    let list=DB.items.filter(i=> i.type===dogamFilter && (!q || (i.n+i.e+i.desc).toLowerCase().includes(q)));
+    count=list.length;
+    html=list.map(i=>`<div class="dcard"><div class="dh"><span class="nm">${esc(i.n)}</span>${i.e?`<span class="en">${esc(i.e)}</span>`:''}</div><div class="ds">${esc(i.desc||'')}</div></div>`).join('');
+  }
+  $('#dogamCount').textContent = `${count}개`;
+  R.innerHTML = html || `<div class="empty">검색 결과가 없어요</div>`;
+}
+function setDogamSub(sub){
+  dogamSub=sub;
+  dogamFilter = sub==='items' ? '완성 아이템' : '';
+  document.querySelectorAll('#dogamTabs .seg-tab').forEach(t=>t.classList.toggle('on', t.dataset.sub===sub));
+  renderDogamFilters(); renderDogam();
+}
+$('#dogamTabs').onclick = e=>{ const el=e.target.closest('.seg-tab'); if(!el) return; setDogamSub(el.dataset.sub); };
+$('#dogamFilters').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  dogamFilter = el.dataset.f; renderDogamFilters(); renderDogam(); };
+$('#dogamSearch').oninput = ()=>renderDogam();
+
+$('#deckSearch').oninput = e=>renderDecks(e.target.value);
+
+/* ===== 덱 추천 로직 ===== */
+const COMPS8 = COMPONENTS.slice(0,8);                 // 기본 아이템 8종 (상징 제외)
+const RECIPE = {};                                    // 완성템 → [재료1, 재료2]
+COMBOS.forEach(c=>{ RECIPE[c.result] = c.recipe.split(" + "); });
+const counts = {}; COMPS8.forEach(c=>counts[c]=0);    // 가진 기본템 개수
+const offeredAug = new Set();                         // 제안된(뜬) 증강 이름
+let curLevel = null;                                  // 현재 레벨
+let curGold = null;                                   // 보유 골드
+const TIER_ORDER = {S:0, A:1, B:2, C:3};
+const heldTotal = () => COMPS8.reduce((n,c)=>n+counts[c],0);
+const isReroll = d => /리롤/.test(d.playstyle + d.level);
+const AUG_BY_NAME = {}; (DB.augments||[]).forEach(a=>AUG_BY_NAME[a.n]=a);
+const GOLD_PRESETS = [0,10,20,30,50,80];
+
+function renderPickers(){
+  $('#compSteppers').innerHTML = COMPS8.map(c=>{
+    const n=counts[c];
+    return `<div class="stepper ${n?'on':''}"><span class="sname">${esc(c)}</span>`+
+      `<button class="sbtn" data-c="${esc(c)}" data-d="-1">−</button>`+
+      `<span class="scount">${n}</span>`+
+      `<button class="sbtn" data-c="${esc(c)}" data-d="1">+</button></div>`;
+  }).join('');
+  $('#lvlPicker').innerHTML = [4,5,6,7,8,9].map(l=>
+    `<span class="pick ${curLevel===l?'on':''}" data-lvl="${l}">Lv ${l}</span>`).join('');
+  $('#goldVal').textContent = curGold===null ? '— 미설정' : `— ${curGold}골드`;
+  if(curGold!==null) $('#goldRange').value = curGold;
+  $('#goldPresets').innerHTML = GOLD_PRESETS.map(g=>
+    `<span class="pick ${curGold===g?'on':''}" data-g="${g}">${g}</span>`).join('');
+}
+
+function renderAugInput(){
+  const q=($('#augSearch2').value||'').trim().toLowerCase();
+  const opts = q ? (DB.augments||[]).filter(a=>!offeredAug.has(a.n) && (a.n+(a.desc||'')).toLowerCase().includes(q)).slice(0,10) : [];
+  $('#augOptions').innerHTML = q
+    ? (opts.map(a=>`<span class="pick" data-a="${esc(a.n)}"><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span> ${esc(a.n)}</span>`).join('') || `<span class="seg">검색 결과 없음</span>`)
+    : '';
+  $('#augSelected').innerHTML = offeredAug.size
+    ? [...offeredAug].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
+    : `<span class="seg">뜬 증강을 검색해 추가하세요 (최대 3개)</span>`;
+}
+
+// 덱 점수: 주력 캐리 완성템을 내 재료(개수)로 몇 개 만들 수 있나
+function scoreDeck(d){
+  const core = (d.carries[0]?.items || []).filter(it=>RECIPE[it]);
+  const avail = {...counts};
+  let matched=0, total=0, ready=0;
+  const items = core.map(it=>{
+    const [a,b] = RECIPE[it];
+    let have=0, miss=[];
+    if(avail[a]>0){ avail[a]--; have++; } else miss.push(a);
+    if(avail[b]>0){ avail[b]--; have++; } else miss.push(b);
+    matched+=have; total+=2;
+    const state = have===2?'ready':have===1?'partial':'miss';
+    if(have===2) ready++;
+    return {it, state, miss};
+  });
+  const pct = total ? matched/total : 0;
+  let augBonus = 0;
+  if(offeredAug.size){
+    const units=[...(d.carries||[]).map(c=>c.unit),...(d.comp||[])].map(u=>u.split('(')[0].trim());
+    [...offeredAug].forEach(n=>{const a=AUG_BY_NAME[n]; if(!a)return; const txt=a.n+' '+(a.desc||'');
+      if(units.some(u=>u&&txt.includes(u))) augBonus=0.15;});
+  }
+  return { d, items, pct, ready, coreCount:core.length, augBonus, score: pct + augBonus + ready*0.001 };
+}
+
+// 제안된 증강 적합도 (도감 258 기반): 티어 + 내 유닛/덱 유닛 관련성
+function augFitDB(a, d){
+  let s = a.tier==='prismatic'?1.0 : a.tier==='gold'?0.7 : 0.5;
+  const txt = a.n+' '+(a.desc||'');
+  if([...myUnits].some(n=>txt.includes(n))) s += 0.5;
+  else {
+    const units=[...(d.carries||[]).map(c=>c.unit),...(d.comp||[])].map(u=>u.split('(')[0].trim());
+    if(units.some(u=>u && txt.includes(u))) s += 0.3;
+  }
+  return s;
+}
+function augAdvice(d){
+  if(!offeredAug.size) return '';
+  const pool=[...offeredAug].map(n=>AUG_BY_NAME[n]).filter(Boolean);
+  const ranked=pool.map(a=>({a,f:augFitDB(a,d)})).sort((x,y)=>y.f-x.f);
+  return `<div class="advice aug-pick"><b>✨ 제안된 증강 중 추천</b>`+
+    ranked.map((r,i)=>`<div class="aug-rec"><span class="rank">${i+1}</span><span>${esc(r.a.n)} <span class="aug-tag ${r.a.tier}">${TIER_KO[r.a.tier]}</span></span>${i===0?'<span class="best">BEST</span>':''}</div>`).join('')+
+    `</div>`;
+}
+
+// 롤/레벨 조언 (현재 레벨·골드 기반)
+function pathAdvice(d){
+  if(curLevel===null && curGold===null) return '';
+  const nums = (d.level.match(/\d+/g)||[]).map(Number);
+  const rr = isReroll(d);
+  const rollLv = nums[0] || (rr?7:8);
+  const pushLv = nums[nums.length-1] || (rr?8:9);
+  let line = '';
+  if(curLevel!==null){
+    if(rr){
+      if(curLevel < rollLv)      line = `아직 레벨업 단계 — <b>${rollLv}렙</b>까지 올리고 그 전엔 경제 유지(50골 이자).`;
+      else if(curLevel < 8)      line = `👉 지금이 <b>슬로우롤</b> 타이밍! <b>50골 위</b> 유지하며 조금씩 롤 → 캐리 3성.`;
+      else                        line = `3성 확보했으면 <b>${pushLv}렙</b>까지 레벨업해 마무리.`;
+    } else {
+      if(curLevel < pushLv)      line = `레벨업 <b>최우선</b>(경제 되면). 50골 이자·체력 관리하며 <b>${pushLv}렙</b>으로.`;
+      else                        line = `👉 <b>${pushLv}렙 롤다운</b>: 핵심 유닛·아이템 퀄리티 우선.`;
+    }
+  }
+  let goldLine = '';
+  if(curGold!==null){
+    if(curGold>=50)      goldLine = '💰 이자 최대(50골) 유지 중 👍';
+    else if(curGold>=30) goldLine = '💰 급하지 않으면 50골까지 모아 이자 극대화.';
+    else                 goldLine = '💰 골드 낮음 — 무리한 롤 주의, 연승/연패 보너스 관리.';
+  }
+  if(!line && !goldLine) return '';
+  return `<div class="advice"><b>🧭 지금 할 일</b><br>${line}${line&&goldLine?'<br>':''}${goldLine}</div>`;
+}
+
+function renderReco(){
+  const nothing = heldTotal()===0 && offeredAug.size===0 && curLevel===null && curGold===null;
+  if(nothing){
+    const list=[...DECKS].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]);
+    $('#recoResult').innerHTML =
+      `<div class="reco-hint">👆 기본 아이템·레벨·골드·증강을 넣으면 <b>유리한 순서</b>로 정렬돼요. 아래는 티어 순.</div>`+
+      list.map(d=>`
+        <div class="reco-card">
+          <div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
+          <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+        </div>`).join('');
+    return;
+  }
+  const ranked = DECKS.map(scoreDeck).sort((a,b)=>b.score-a.score);
+  $('#recoResult').innerHTML = ranked.map((r,i)=>`
+    <div class="reco-card ${i===0?'top':''}">
+      <div class="card-head">
+        <div class="deck-name" style="font-size:15px">${i===0?'⭐ ':''}${esc(r.d.name)}</div>
+        <span class="tier ${r.d.tier}">${r.d.tier}</span>
+      </div>
+      <div class="meta">재료 매칭 ${Math.round(r.pct*100)}% · 핵심템 ${r.ready}/${r.coreCount} 제작 가능${r.augBonus?' · 증강 적합 ✓':''}</div>
+      <div class="match-bar"><div class="match-fill" style="width:${Math.round(r.pct*100)}%"></div></div>
+      <div class="reco-items">${r.items.map(x=>`
+        <span class="reco-item ${x.state}">${x.state==='ready'?'✓ ':x.state==='partial'?'◑ ':'· '}${esc(x.it)}${x.miss.length?` <span style="opacity:.75">(필요: ${x.miss.map(esc).join(', ')})</span>`:''}</span>`).join('')}
+      </div>
+      <div class="meta" style="margin-top:9px">Lv ${esc(r.d.level)} · ${esc(r.d.playstyle)}</div>
+      ${i===0 ? pathAdvice(r.d) + augAdvice(r.d) + (r.d.notes?`<div class="meta" style="margin-top:8px">💡 ${esc(r.d.notes)}</div>`:'') : ''}
+    </div>`).join('');
+}
+
+$('#compSteppers').onclick = e=>{ const b=e.target.closest('.sbtn'); if(!b) return;
+  const c=b.dataset.c, d=+b.dataset.d; counts[c]=Math.max(0, Math.min(9, counts[c]+d)); renderPickers(); renderReco(); };
+$('#lvlPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  const l=+el.dataset.lvl; curLevel = (curLevel===l ? null : l); renderPickers(); renderReco(); };
+$('#goldRange').oninput = e=>{ curGold=+e.target.value; renderPickers(); renderReco(); };
+$('#goldPresets').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  curGold=+el.dataset.g; $('#goldRange').value=curGold; renderPickers(); renderReco(); };
+$('#augSearch2').oninput = ()=>renderAugInput();
+$('#augOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.a) return;
+  if(offeredAug.size<3) offeredAug.add(el.dataset.a); $('#augSearch2').value=''; renderAugInput(); renderReco(); };
+$('#augSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
+  offeredAug.delete(el.dataset.rm); renderAugInput(); renderReco(); };
+$('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); offeredAug.clear(); curLevel=null; curGold=null;
+  $('#goldRange').value=0; $('#augSearch2').value=''; renderPickers(); renderAugInput(); renderReco(); };
+
+/* ===== 내 분석 & 코칭 ===== */
+const LS_KEY = 'tft_games_v1';
+let games = [];
+try { games = JSON.parse(localStorage.getItem(LS_KEY) || '[]') || []; } catch(e){ games = []; }
+function saveGames(){ try { localStorage.setItem(LS_KEY, JSON.stringify(games)); } catch(e){} }
+const pct = x => Math.round(x*100)+'%';
+let curPlace = null;
+let prefSel = null;
+
+function renderAnalysisInputs(){
+  $('#prefPicker').innerHTML = [['reroll','리롤'],['fast','레벨링'],['flex','유연']]
+    .map(([k,l])=>`<span class="pick ${prefSel===k?'on':''}" data-pref="${k}">${l}</span>`).join('');
+  $('#logDeck').innerHTML = `<option value="">덱 선택…</option>`+
+    DECKS.map(d=>`<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('')+
+    `<option value="기타">기타</option>`;
+  $('#placePicker').innerHTML = [1,2,3,4,5,6,7,8]
+    .map(p=>`<span class="pick ${curPlace===p?'on':''}" data-p="${p}">${p}등</span>`).join('');
+  $('#logBtn').disabled = !($('#logDeck').value && curPlace);
+}
+
+function renderPref(){
+  if(!prefSel){ $('#prefResult').innerHTML=''; return; }
+  let list;
+  if(prefSel==='reroll')    list = DECKS.filter(d=>isReroll(d));
+  else if(prefSel==='fast') list = DECKS.filter(d=>!isReroll(d));
+  else                      list = DECKS.filter(d=>d.tier==='S'||d.tier==='A');
+  list = [...list].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]).slice(0,4);
+  $('#prefResult').innerHTML = `<div class="reco-hint" style="margin:6px 0 8px">이 스타일에 맞는 덱:</div>`+
+    list.map(d=>`<div class="reco-card"><div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div><div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div></div>`).join('');
+}
+
+const styleOf = name => { const dk=DECKS.find(D=>D.name===name); return dk ? (isReroll(dk)?'리롤':'레벨링') : '기타'; };
+
+function analyze(){
+  const g=games, n=g.length; if(!n) return null;
+  const avg = g.reduce((s,x)=>s+x.place,0)/n;
+  const top4 = g.filter(x=>x.place<=4).length/n;
+  const first = g.filter(x=>x.place===1).length/n;
+  const byDeck={}; g.forEach(x=>{ (byDeck[x.deck]=byDeck[x.deck]||[]).push(x.place); });
+  const deckStats = Object.entries(byDeck).map(([d,ps])=>({d,n:ps.length,avg:ps.reduce((a,b)=>a+b,0)/ps.length})).sort((a,b)=>a.avg-b.avg);
+  const byStyle={}; g.forEach(x=>{ const s=styleOf(x.deck); (byStyle[s]=byStyle[s]||[]).push(x.place); });
+  const styleStats = Object.entries(byStyle).map(([s,ps])=>({s,n:ps.length,avg:ps.reduce((a,b)=>a+b,0)/ps.length}));
+  const maxShare = Math.max(...deckStats.map(d=>d.n))/n;
+  return {n,avg,top4,first,deckStats,styleStats,maxShare};
+}
+
+function coachTips(A){
+  const t=[];
+  if(A.n<5) t.push(['표본이 적어요','최소 5~10판을 기록하면 성향 분석이 정확해져요.']);
+  if(A.top4<0.4) t.push([`탑4율이 낮아요 (${pct(A.top4)})`,'기본기 점검: 체력 관리, 아이템 슬램(재료 방치 금지), 연승/연패 라인 관리.']);
+  else if(A.top4>=0.5 && A.first<0.12) t.push(['안정적인데 1등이 적어요','2~4등은 잘 잡아요. 후반 포지셔닝·아이템 퀄리티를 다듬고 하이롤 판에서 1등을 노려보세요.']);
+  if(A.styleStats.length>=2){
+    const s=[...A.styleStats].sort((a,b)=>a.avg-b.avg);
+    const best=s[0], worst=s[s.length-1];
+    if(best.n>=3 && worst.n>=3 && worst.avg-best.avg>=0.8)
+      t.push([`${best.s} 덱이 더 잘 맞아요`,`평균 ${best.avg.toFixed(1)}등 vs ${worst.s} ${worst.avg.toFixed(1)}등. ${best.s} 계열을 주력으로 가져가세요.`]);
+  }
+  const enough=A.deckStats.filter(d=>d.n>=3);
+  if(enough.length){
+    const bd=enough[0];
+    if(bd.avg<=4.2) t.push([`주력덱 후보: ${bd.d}`,`평균 ${bd.avg.toFixed(1)}등 (${bd.n}판). 이 덱 라인을 더 다듬으면 안정적으로 탑4가 나와요.`]);
+    const wd=enough[enough.length-1];
+    if(wd.avg>=5 && wd.d!==bd.d) t.push([`저조한 덱: ${wd.d}`,`평균 ${wd.avg.toFixed(1)}등. 운영을 재점검하거나 당분간 지양하세요.`]);
+  }
+  if(A.n>=8 && A.maxShare>0.55) t.push([`한 덱 의존도 높음 (${pct(A.maxShare)})`,'오프너/아이템에 따라 유연하게 피벗하는 연습을 하면 평균 등수가 올라가요.']);
+  if(!t.length) t.push(['좋은 흐름이에요 👍','성향이 안정적입니다. 새 덱 1~2개를 실험하며 폭을 넓혀보세요.']);
+  return t;
+}
+
+function renderAnalysis(){
+  const A = analyze();
+  if(!A){
+    $('#analysisResult').innerHTML = `<div class="empty">아직 기록이 없어요.<br>게임이 끝나면 위에서 덱·등수를 기록해 주세요.</div>`;
+    return;
+  }
+  const avgColor = A.avg<=4 ? 'var(--green)' : A.avg<=4.6 ? 'var(--gold)' : 'var(--red)';
+  const tips = coachTips(A);
+  const recent = games.slice(-8).reverse();
+  $('#analysisResult').innerHTML =
+    `<div class="stat-row">
+       <div class="stat"><div class="v">${A.n}</div><div class="k">게임</div></div>
+       <div class="stat"><div class="v" style="color:${avgColor}">${A.avg.toFixed(1)}</div><div class="k">평균 등수</div></div>
+       <div class="stat"><div class="v">${pct(A.top4)}</div><div class="k">탑4율</div></div>
+       <div class="stat"><div class="v">${pct(A.first)}</div><div class="k">1등률</div></div>
+     </div>`+
+    `<table class="dtable"><tr><th>덱</th><th class="num">판</th><th class="num">평균</th></tr>`+
+      A.deckStats.map(d=>`<tr><td>${esc(d.d)}</td><td class="num">${d.n}</td><td class="num">${d.avg.toFixed(1)}</td></tr>`).join('')+
+    `</table>`+
+    `<div class="seg">스타일: ${A.styleStats.map(s=>`${esc(s.s)} ${s.n}판·${s.avg.toFixed(1)}등`).join('  ·  ')}</div>`+
+    `<div class="label" style="margin:14px 0 6px;">✅ 맞춤 코칭</div>`+
+    tips.map(([tt,td])=>`<div class="tip"><div class="tt">${esc(tt)}</div><div class="td2">${esc(td)}</div></div>`).join('')+
+    `<div class="label" style="margin:12px 0 6px;">최근 기록</div>`+
+    `<div class="chips">`+recent.map(x=>`<span class="chip">${esc(x.deck)} · ${x.place}등</span>`).join('')+`</div>`;
+}
+
+$('#prefPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  prefSel = (prefSel===el.dataset.pref ? null : el.dataset.pref); renderAnalysisInputs(); renderPref(); };
+$('#placePicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  curPlace = (curPlace===+el.dataset.p ? null : +el.dataset.p); renderAnalysisInputs(); };
+$('#logDeck').onchange = ()=>renderAnalysisInputs();
+$('#logBtn').onclick = ()=>{ const deck=$('#logDeck').value; if(!deck||!curPlace) return;
+  games.push({deck, place:curPlace}); saveGames();
+  curPlace=null; $('#logDeck').value=''; renderAnalysisInputs(); renderAnalysis(); };
+$('#analysisReset').onclick = ()=>{ if(confirm('기록을 모두 삭제할까요?')){ games=[]; saveGames(); renderAnalysis(); } };
+
+/* ===== 실시간 유닛 기반 추천 (도감 데이터 활용) ===== */
+const CHAMPS = DB.champions || [];
+const TRAIT_BP = {}; (DB.traits||[]).forEach(t=>{ TRAIT_BP[t.n]=(t.br.match(/\d+/g)||[]).map(Number); });
+const champByName = {}; CHAMPS.forEach(c=>champByName[c.n]=c);
+const parseTraits = c => ((c&&c.traits)||'').split(',').map(s=>s.trim()).filter(Boolean)
+  .map(s=>{const i=s.indexOf('(');return (i>=0?s.slice(0,i):s).trim();})
+  .filter(t=>t && TRAIT_BP[t]);
+const myUnits = new Set();
+let unitCost = 1;
+
+function traitCounts(){
+  const cnt={}; myUnits.forEach(n=>parseTraits(champByName[n]).forEach(t=>cnt[t]=(cnt[t]||0)+1)); return cnt;
+}
+function nextUnitSuggestions(cnt){
+  return CHAMPS.filter(c=>!myUnits.has(c.n)).map(c=>{
+    let s=0; const help=[];
+    parseTraits(c).forEach(t=>{ const cc=cnt[t]||0; if(cc<1) return; const next=TRAIT_BP[t].find(b=>b>cc);
+      if(next!==undefined){ const complete=cc+1===next; s += complete?3:1; help.push({t,cc,next,complete}); } });
+    // 추천 이유 (왜 넣나): 구간 완성 우선, 없으면 특성 보강
+    let reason='';
+    if(help.length){
+      const comp=help.filter(h=>h.complete);
+      if(comp.length) reason = comp.map(h=>`${h.t} ${h.next} 완성`).join(', ');
+      else { const top=[...help].sort((a,b)=>b.cc-a.cc).slice(0,2); reason = top.map(h=>`${h.t} ${h.cc+1}`).join(' · ')+' 보강'; }
+    }
+    return {c, s, reason, help:help.map(h=>h.t)};
+  }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s || a.c.cost-b.c.cost).slice(0,6);
+}
+// 빼도 되는 유닛: 현재 어떤 활성 특성에도 기여하지 않는(전부 미달) 유닛
+function cutSuggestions(cnt){
+  const first={}; Object.keys(TRAIT_BP).forEach(t=>{ const bp=TRAIT_BP[t]; if(bp.length) first[t]=Math.min(...bp); });
+  return [...myUnits].map(n=>{
+    const c=champByName[n]; if(!c) return null;
+    const ts=parseTraits(c);
+    const contributes = ts.some(t=> first[t]!==undefined && (cnt[t]||0) >= first[t]);
+    return contributes ? null : {n, cost:c.cost};
+  }).filter(Boolean);
+}
+function bestDecks(){
+  const names=[...myUnits]; if(!names.length) return [];
+  return DECKS.map(d=>{
+    const comp=[...(d.carries||[]).map(c=>c.unit), ...(d.comp||[])];
+    const matched=names.filter(n=> comp.some(u=>u.includes(n)) ).length;
+    return {d, matched, total:comp.length, pct:Math.round(matched/comp.length*100), comp};
+  }).filter(x=>x.matched>0).sort((a,b)=>b.matched-a.matched || TIER_ORDER[a.d.tier]-TIER_ORDER[b.d.tier]).slice(0,3);
+}
+function unitAugments(){
+  const names=[...myUnits]; if(!names.length) return [];
+  const ord={prismatic:0,gold:1,silver:2};
+  return (DB.augments||[]).filter(a=> names.some(n=> a.n.includes(n) || (a.desc||'').includes(n)))
+    .sort((a,b)=>ord[a.tier]-ord[b.tier]).slice(0,8);
+}
+
+function renderUnitInputs(){
+  // 코스트 탭
+  $('#unitCostTabs').innerHTML = [1,2,3,4,5].map(c=>
+    `<span class="pick ${unitCost===c?'on':''}" data-uc="${c}">${c}코</span>`).join('');
+  // 선택 코스트 챔피언 그리드
+  const grid = CHAMPS.filter(c=>c.cost===unitCost).sort((a,b)=>a.n.localeCompare(b.n,'ko'));
+  $('#unitGrid').innerHTML = grid.map(c=>
+    `<span class="pick ${myUnits.has(c.n)?'on':''}" data-u="${esc(c.n)}">${esc(c.n)}</span>`).join('');
+  // 이름 검색 옵션
+  const q=($('#unitSearch').value||'').trim().toLowerCase();
+  const opts = q ? CHAMPS.filter(c=>!myUnits.has(c.n) && (c.n+c.e).toLowerCase().includes(q)).slice(0,12) : [];
+  $('#unitOptions').innerHTML = q
+    ? (opts.map(c=>`<span class="pick" data-u="${esc(c.n)}"><span class="cost c${c.cost}">${c.cost}</span> ${esc(c.n)}</span>`).join('') || `<span class="seg">검색 결과 없음</span>`)
+    : '';
+  // 선택한 유닛
+  $('#unitSelected').innerHTML = myUnits.size
+    ? [...myUnits].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
+    : `<span class="seg">아직 없음 — 코스트 골라 챔피언을 탭하세요</span>`;
+  $('#unitSelCount').textContent = myUnits.size ? `(${myUnits.size})` : '';
+}
+function renderUnitResult(){
+  if(myUnits.size===0){ $('#unitResult').innerHTML=''; return; }
+  const cnt=traitCounts();
+  const active=Object.entries(cnt).map(([t,c])=>{const bp=TRAIT_BP[t],a=[...bp].reverse().find(b=>b<=c),next=bp.find(b=>b>c);
+      return {t,c,a,next,need:next!==undefined?next-c:0};})
+    .filter(x=>x.c>=2)
+    .sort((a,b)=>(b.a||0)-(a.a||0) || b.c-a.c);
+  const sugg=nextUnitSuggestions(cnt);
+  const decks=bestDecks();
+  const augs=unitAugments();
+
+  let html = `<div class="label" style="margin-top:10px">활성 특성</div>`;
+  html += active.length
+    ? `<div class="chips">`+active.map(x=>`<span class="chip ${x.need===1?'star':''}">${esc(x.t)} ${x.c}${x.a?'★':''}${x.need===1?' · 1명 더!':x.next?` /${x.next}`:' (MAX)'}</span>`).join('')+`</div>`
+    : `<div class="seg">2명 이상 모인 특성이 아직 없어요</div>`;
+
+  html += `<div class="label" style="margin-top:12px">추가하면 좋은 유닛 <span class="sub-hint">— 왜 넣는지 + 삼신기</span></div>`;
+  html += sugg.length
+    ? sugg.map(x=>`<div class="dcard" style="padding:9px 11px; margin-bottom:6px">
+        <div class="dh"><span class="cost c${x.c.cost}">${x.c.cost}</span><span class="nm" style="font-size:13.5px">${esc(x.c.n)}</span></div>
+        ${x.reason?`<div class="why">➕ ${esc(x.reason)}</div>`:''}
+        ${x.c.items?`<div class="kv"><b>삼신기</b> ${esc(x.c.items)}</div>`:''}
+      </div>`).join('')
+    : `<div class="seg">추천 유닛 없음</div>`;
+
+  const cuts = active.length ? cutSuggestions(cnt) : [];
+  if(cuts.length){
+    html += `<div class="label" style="margin-top:12px">✂️ 빼도 되는 유닛 <span class="sub-hint">— 지금 특성에 기여 없음</span></div>`;
+    html += `<div class="chips">`+cuts.map(x=>`<span class="chip cut-chip"><span class="cost c${x.cost}">${x.cost}</span> ${esc(x.n)}</span>`).join('')+`</div>`;
+    html += `<div class="seg">캐리가 아니라면, 특성 맞는 유닛으로 교체하세요.</div>`;
+  }
+
+  html += `<div class="label" style="margin-top:12px">🎯 목표 덱 <span class="sub-hint">— 내 유닛 겹침 순</span></div>`;
+  html += decks.length ? decks.map((b,i)=>{
+    const missing=b.comp.filter(u=>![...myUnits].some(n=>u.includes(n)));
+    const car=b.d.carries&&b.d.carries[0];
+    return `<div class="reco-card ${i===0?'top':''}">
+      <div class="card-head"><div class="deck-name" style="font-size:15px">${i===0?'⭐ ':''}${esc(b.d.name)}</div><span class="tier ${b.d.tier}">${b.d.tier}</span></div>
+      <div class="meta">완성도 ${b.pct}% · 유닛 ${b.matched}/${b.total} · Lv ${esc(b.d.level)}</div>
+      <div class="match-bar"><div class="match-fill" style="width:${b.pct}%"></div></div>
+      ${i===0&&car?`<div class="meta" style="margin-top:6px">캐리: ${esc(car.unit)} — ${(car.items||[]).map(esc).join(', ')}</div>`:''}
+      ${i===0&&missing.length?`<div class="meta" style="margin-top:4px">더 필요: ${missing.slice(0,8).map(esc).join(', ')}</div>`:''}
+    </div>`;
+  }).join('') : `<div class="seg">겹치는 추천덱 없음 — 특성 기반으로 자유롭게 운영하세요</div>`;
+
+  if(augs.length){
+    html += `<div class="label" style="margin-top:12px">✨ 내 유닛 관련 증강</div>`;
+    html += augs.map(a=>`<div class="aug ${a.tier}"><span class="aug-name">${esc(a.n)}</span><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span>${a.when?`<span class="seg" style="margin-left:6px">${esc(a.when)}</span>`:''}<div class="aug-desc">${esc(a.desc||'')}</div></div>`).join('');
+  }
+
+  $('#unitResult').innerHTML = html;
+}
+function renderUnit(){ renderUnitInputs(); renderUnitResult(); }
+
+$('#unitCostTabs').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  unitCost=+el.dataset.uc; renderUnitInputs(); };
+$('#unitGrid').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.u) return;
+  const n=el.dataset.u; myUnits.has(n)?myUnits.delete(n):myUnits.add(n); renderUnit(); };
+$('#unitSearch').oninput = ()=>renderUnitInputs();
+$('#unitOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.u) return;
+  myUnits.add(el.dataset.u); $('#unitSearch').value=''; renderUnit(); };
+$('#unitSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
+  myUnits.delete(el.dataset.rm); renderUnit(); };
+
+renderDecks(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
+renderAnalysisInputs(); renderPref(); renderAnalysis();
+</script>
+</body>
+</html>
