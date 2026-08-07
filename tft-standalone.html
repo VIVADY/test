@@ -239,6 +239,16 @@
   .blvl{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 2px;}
   .blvl-tag{font-size:11px; font-weight:800; color:var(--gold); background:rgba(240,180,41,.12); border-radius:7px; padding:2px 8px;}
   .aug-scroll{max-height:200px; overflow-y:auto; align-content:flex-start; padding:2px; border:1px solid var(--line); border-radius:10px;}
+  /* 쉬움 모드 */
+  .easy-card{background:var(--bg2); border:1px solid var(--line); border-left:3px solid var(--gold); border-radius:14px; padding:13px; margin-bottom:12px;}
+  .easy-card .easy-name{font-size:16px; font-weight:800; letter-spacing:-.02em;}
+  .easy-line{font-size:13.5px; color:var(--fg2); margin-top:8px; line-height:1.5;}
+  .easy-line b{color:var(--fg);}
+  .easy-items{color:var(--gold); font-weight:700;}
+  .cheat{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin-bottom:10px;}
+  .cheat .ch-t{font-weight:800; font-size:14px; margin-bottom:5px;}
+  .cheat .ch-b{font-size:13px; color:var(--fg2); line-height:1.6;}
+  .cheat .big{font-size:14.5px; color:var(--gold); font-weight:700; letter-spacing:-.01em;}
 </style>
 </head>
 <body>
@@ -247,13 +257,39 @@
   <div class="title"><span class="dot">♟️</span> TFT 도우미</div>
   <div class="patch" id="patchInfo">예시 데이터 · 최신 패치에 맞게 수정하세요</div>
   <div class="tabs">
-    <div class="tab active" data-view="decks">추천덱</div>
+    <div class="tab active" data-view="easy">🔰 쉬움</div>
+    <div class="tab" data-view="decks">추천덱</div>
     <div class="tab" data-view="reco">덱추천</div>
     <div class="tab" data-view="dogam">도감</div>
   </div>
 </header>
 
 <main>
+  <!-- ============ 🔰 쉬움 (입력 필요 없는 한눈에 가이드) ============ -->
+  <section class="view active" id="view-easy">
+    <p class="reco-help">입력 없이 <b>이것만 따라 하세요</b>. 게임 중 힐끗 보기용 초보 치트시트예요.</p>
+    <div class="label">⭐ 이 덱 중 하나를 파세요</div>
+    <div id="easyResult"></div>
+
+    <div class="cheat">
+      <div class="ch-t">📈 레벨업 타이밍 (기본만)</div>
+      <div class="ch-b"><span class="big">2-1→4렙 · 3-2→6렙 · 4-1→7렙 · 4-5→8렙 · 6-1→9렙</span><br>파스트덱은 이 타이밍에 레벨업. 리롤덱은 해당 레벨에서 멈추고 롤.</div>
+    </div>
+    <div class="cheat">
+      <div class="ch-t">💰 골드 규칙 (딱 하나)</div>
+      <div class="ch-b"><span class="big">항상 50골드 위로 유지 = 이자 최대(+5)</span><br>급하지 않으면 롤 참고 모으기. 연승/연패 중이면 유지해서 보너스 챙기기.</div>
+    </div>
+    <div class="cheat">
+      <div class="ch-t">🔰 초보 3대 규칙</div>
+      <div class="ch-b">① <b>아이템 재료는 바로 장착</b> (창고에 방치 금지)<br>② <b>체력 관리</b> — 무리한 롤 금지, 20 이하 위험<br>③ <b>한 덱만 고집 X</b> — 초반 뜬 아이템·유닛 따라 유연하게</div>
+    </div>
+    <div class="cheat">
+      <div class="ch-t">🧭 매 판 순서</div>
+      <div class="ch-b">강한 유닛 세우기 → 아이템 조합 → 위 덱 하나로 방향 잡기 → 타이밍에 레벨업 → 50골드 유지 → 캐리에 아이템 몰아주기</div>
+    </div>
+    <div class="note" style="margin:10px 0 0;">더 자세히 보고 싶으면 위 <b>추천덱</b> 탭에서 덱별 배치도·가이드를 볼 수 있어요.</div>
+  </section>
+
   <!-- ============ 덱 추천 (내 재료 기반) ============ -->
   <section class="view" id="view-reco">
     <div class="col-title">🧭 덱 추천</div>
@@ -302,7 +338,7 @@
   </section>
 
   <!-- ============ 추천 덱 ============ -->
-  <section class="view active" id="view-decks">
+  <section class="view" id="view-decks">
     <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 벡스, 리롤)" />
     <div id="deckList"></div>
   </section>
@@ -689,6 +725,29 @@ function guideHtml(name){
     if(b.note) h+=`<div class="meta" style="margin-top:4px">📍 ${esc(b.note)}</div>`;
   });
   return h;
+}
+
+const EASY_PICKS = [
+  {name:"메카 (아우렐리온 솔)", why:"원트릭 · 아이템 덜 타서 초보에게 쉬움"},
+  {name:"리산드라 리롤", why:"저코 리롤 · 8렙 안 가도 됨, 안정적"},
+  {name:"별돌보미 자야", why:"S티어 평타 캐리 · 무난한 파스트"},
+];
+function renderEasy(){
+  $('#easyResult').innerHTML = EASY_PICKS.map((pick,i)=>{
+    const d=DECKS.find(x=>x.name===pick.name); if(!d) return '';
+    const car=d.carries[0];
+    const carItems=(car.items||[]).filter(x=>!/금지|우선|먼저|딜템|위주/.test(x)).slice(0,3);
+    const fin=DECK_FINAL[d.name]||[];
+    const carryStr=(d.carries||[]).map(c=>c.unit).join(' ');
+    return `<div class="easy-card">
+      <div class="card-head"><div class="easy-name">${i+1}. ${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
+      <div class="easy-line" style="color:var(--fg3)">${esc(pick.why)}</div>
+      <div class="easy-line">🎯 <b>캐리</b> ${esc(car.unit.split('(')[0].trim())}${carItems.length?` → <span class="easy-items">${carItems.map(esc).join(' + ')}</span>`:''}</div>
+      <div class="easy-line">🧩 <b>모을 챔프</b> <span class="sub-hint">★=캐리</span></div>
+      <div class="chips">${fin.map(n=>{const c=carryStr.includes(n);return `<span class="chip ${c?'star':''}">${c?'★':''}${esc(n)}</span>`;}).join('')}</div>
+      <div class="easy-line">🕹️ <b>운영</b> Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+    </div>`;
+  }).join('');
 }
 
 function finalChips(d){
@@ -1099,7 +1158,7 @@ $('#unitOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el
 $('#unitSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
   myUnits.delete(el.dataset.rm); renderUnit(); };
 
-renderDecks(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
+renderEasy(); renderDecks(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
 </script>
 </body>
 </html>
