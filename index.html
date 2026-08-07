@@ -205,6 +205,26 @@
     color:var(--fg); font-size:17px; font-weight:800; line-height:1; cursor:pointer; padding:0;}
   .sbtn:active{background:var(--gold); color:#1a1204;}
   .gold-range{width:100%; accent-color:var(--gold); height:30px; margin:2px 0 8px;}
+  /* 덱 가이드 · 배치도 */
+  .dguide{margin-top:10px; border-top:1px solid var(--line); padding-top:8px;}
+  .dguide summary{font-size:13px; font-weight:700; color:var(--gold); cursor:pointer; list-style:none;}
+  .dguide summary::-webkit-details-marker{display:none;}
+  .dguide summary::before{content:"▸ "; }
+  .dguide[open] summary::before{content:"▾ "; }
+  .gstep{display:flex; gap:8px; padding:5px 0; border-bottom:1px solid var(--line);}
+  .gstage{flex-shrink:0; font-size:11px; font-weight:800; color:var(--gold); min-width:54px;}
+  .gtext{font-size:12.5px; color:var(--fg2); line-height:1.45;}
+  .board-diagram{margin:6px 0 2px; overflow-x:auto;}
+  .brow{display:flex; gap:3px; margin-bottom:3px;}
+  .brow.odd{margin-left:20px;}
+  .hex{width:40px; height:36px; border-radius:8px; display:flex; flex-direction:column; align-items:center; justify-content:center;
+    text-align:center; font-size:8.5px; line-height:1.08; padding:2px; background:var(--bg3); border:1px solid var(--line); color:var(--fg3); flex:none;}
+  .hex.empty{background:transparent; border-style:dashed; opacity:.3;}
+  .hex.carry{background:rgba(240,180,41,.2); border-color:var(--gold); color:var(--gold); font-weight:800;}
+  .hex.back{background:rgba(168,85,247,.16); border-color:rgba(168,85,247,.35); color:#d8b6f5;}
+  .hex.mid{background:var(--bg3); color:var(--fg2);}
+  .hex.tank{background:rgba(59,130,246,.16); border-color:rgba(59,130,246,.35); color:#9dc0f5;}
+  .board-legend{font-size:10.5px; color:var(--fg3); margin-top:3px;}
 </style>
 </head>
 <body>
@@ -413,6 +433,92 @@ const DECKS = [
   },
 ];
 
+/* --- 1-b) 덱별 레벨 가이드 · 배치도 ---
+   steps: [{s:"스테이지", t:"할 일"}],  board: {corner:'left'|'right', back:[후열], mid:[중열], front:[전열], note}
+   (배치는 표준 포지션 가이드 — 캐리 백라인 코너, 탱커 전열) */
+const DECK_GUIDE = {
+  "N.O.V.A. 벡스 파스트 9": {
+    steps:[
+      {s:"1-2~2-1", t:"강한 아이템 오프너로 연승. 벡스 아이템은 트페 등 홀더에 미리 장착."},
+      {s:"2-5~3-2", t:"레벨업 최우선(경제 되면). 체력 80+·50골 이자 유지."},
+      {s:"4-1", t:"8렙 도달, 모르가나 등 4코 탱커로 보드 안정."},
+      {s:"5-1~6-1", t:"9렙 찍고 롤다운 → 벡스·5코 2성. 벡스에 구인수 필수."},
+    ],
+    board:{corner:'right', back:["벡스","그레이브즈"], mid:["트위스티드 페이트"], front:["모르가나","누누"],
+      note:"벡스 백라인 코너, 탱커 전열. 암살자 상대엔 반대 코너로 스왑."}
+  },
+  "메카 (아우렐리온 솔)": {
+    steps:[
+      {s:"1-2~2-1", t:"메크·ASol 아이템 홀더 확보, 연승 지향."},
+      {s:"3-2", t:"레벨업 최우선, 경제 유지."},
+      {s:"4-1", t:"8렙 → 메카 3유닛(우르곳·ASol·마이티 메크)+탐 켄치 복사로 6메카."},
+      {s:"4-2~5-1", t:"롤다운 → ASol·메크 2성. ASol 공속템 금지."},
+    ],
+    board:{corner:'left', back:["아우렐리온 솔"], mid:["우르곳","탐 켄치"], front:["마이티 메크"],
+      note:"마이티 메크 전열 중앙(어그로), ASol 뒤에서 변신 램핑."}
+  },
+  "암흑의 별 진 (스페이스 오페라)": {
+    steps:[
+      {s:"1-2~2-1", t:"딜템 홀더 확보. 암흑의 별/저격수 상징 있으면 최우선."},
+      {s:"3-2", t:"레벨업하며 6 암흑의 별 목표."},
+      {s:"4-1", t:"8렙, 카르마·자야 2성 + 딜템 분배."},
+      {s:"5-1~", t:"진(5코) 확보하면 딜템 이전, 2차 캐리로 마무리."},
+    ],
+    board:{corner:'right', back:["진","자야","카르마"], mid:["리븐"], front:["일라오이","누누"],
+      note:"진은 적에게서 가장 먼 코너(저격수 거리 증폭). 자야·카르마 백라인, 탱커 전열."}
+  },
+  "리산드라 리롤": {
+    steps:[
+      {s:"2-1", t:"초가스2·리산드라2로 연승. 아이템 슬램(방치 금지)."},
+      {s:"3-1", t:"4렙에서 60→30골 롤로 1코 보강."},
+      {s:"3-2~3-5", t:"슬로우롤(50골 위) → 리산드라·초가스 3성."},
+      {s:"3성 후", t:"6렙, 대부분 8렙에서 마무리."},
+    ],
+    board:{corner:'left', back:["리산드라"], mid:["바루스"], front:["초가스"],
+      note:"초가스 전열 탱, 리산드라 백라인 코너. 바루스 서포터로 안정성↑."}
+  },
+  "사미라 리롤": {
+    steps:[
+      {s:"2-1", t:"아이템 오프너. 사미라 아이템(⚠️무한의 대검 금지)."},
+      {s:"3-2", t:"7렙 향해 레벨, 경제 관리."},
+      {s:"4-1", t:"7렙 30골 위로 롤 → 사미라 3성."},
+      {s:"후반", t:"오른 앞 어그로, 사미라 안전한 백라인 램핑."},
+    ],
+    board:{corner:'right', back:["사미라"], mid:["누누와 윌럼프"], front:["오른"],
+      note:"오른 앞 중앙 어그로, 사미라 반대편 백라인. 최후의 속삭임은 후반 이전 가능."}
+  },
+  "별돌보미 자야": {
+    steps:[
+      {s:"2-1", t:"별돌보미 별자리 선택(산 등). 자야 BIS(붉은 덩굴정령+크라켄) 지향."},
+      {s:"3-2", t:"레벨업 우선, 강한 보드 유지."},
+      {s:"4-1", t:"롤다운 → 자야2 + 4코 탱커(탐 켄치/누누/라무스)."},
+      {s:"후반", t:"자야 백라인 코너, 진 2차 캐리."},
+    ],
+    board:{corner:'left', back:["자야","진"], mid:["리븐"], front:["누누","탐 켄치"],
+      note:"자야 백라인 코너(평타 안전), 진 옆에. 탱커 전열."}
+  },
+  "Capped & Loaded (AD 파스트9)": {
+    steps:[
+      {s:"2-1", t:"4렙 연승, AD 오프너. 홀더(케이틀린·탈론)에 아이템."},
+      {s:"3-2", t:"6렙 유지, 경제 관리."},
+      {s:"4-1~5-1", t:"체력 관리하며 8렙까지 레벨업."},
+      {s:"6-1", t:"9렙 → 피오라/그레이브즈/벡스 2성, 5코 보강."},
+    ],
+    board:{corner:'right', back:["벡스","그레이브즈"], mid:["케이틀린","탈론"], front:["피오라","누누"],
+      note:"주 캐리 백라인 코너. 피오라는 전열 브루저로 활용 가능."}
+  },
+  "카르마 여행자 (미러 메이헴)": {
+    steps:[
+      {s:"2-1", t:"카르마 AP 아이템 홀더. 여행자 상징 노림."},
+      {s:"3-2", t:"레벨업 우선, 저코 여행자(밉시·파이크) 유지."},
+      {s:"4-1", t:"8렙 → 6여행자(상징 1개), 카르마 2성."},
+      {s:"후반", t:"카르마 백라인, 마이티 메크 전열."},
+    ],
+    board:{corner:'left', back:["카르마","오로라"], mid:["르블랑","밉시","파이크"], front:["마이티 메크","모르가나"],
+      note:"카르마 백라인 코너, 마이티 메크 전열. 저코 여행자로 6특성 유지."}
+  },
+};
+
 /* --- 2) 아이템 조합 (표준 조합표) ---
    components: 기본 아이템,  combos: {재료1 + 재료2 → 완성 아이템} */
 const COMPONENTS = ["B.F. 대검","곡궁","쓸데없이 큰 지팡이","여신의 눈물","쇠사슬 조끼","음전자 망토","거인의 허리띠","연습용 장갑","뒤집개(상징)"];
@@ -492,6 +598,45 @@ document.querySelectorAll('.tab').forEach(t=>{
 });
 
 // 덱 렌더
+const SHORT = {"아우렐리온 솔":"ASol","누누와 윌럼프":"누누","트위스티드 페이트":"트페","마이티 메크":"메크"};
+const shortName = n => SHORT[n] || n;
+function makeBoard(b){
+  const rows=[Array(7).fill(null),Array(7).fill(null),Array(7).fill(null),Array(7).fill(null)];
+  const put=(r,list,role,side)=>{
+    if(!list||!list.length) return;
+    const n=list.length; let cols;
+    if(side==='left') cols=list.map((_,i)=>i);
+    else if(side==='right') cols=list.map((_,i)=>6-i);
+    else { const st=Math.max(0,Math.floor((7-n)/2)); cols=list.map((_,i)=>st+i); }
+    list.forEach((name,i)=>{ const c=cols[i]; if(c>=0&&c<7) rows[r][c]={name, role, carry: role==='back'&&i===0}; });
+  };
+  const side=b.corner==='right'?'right':'left';
+  put(0, b.back, 'back', side);
+  put(1, b.mid||[], 'mid', side);
+  put(3, b.front||[], 'tank', 'center');
+  return rows;
+}
+function boardHtml(b){
+  const rows=makeBoard(b);
+  let h=`<div class="board-diagram">`;
+  rows.forEach((row,ri)=>{
+    h+=`<div class="brow ${ri%2?'odd':''}">`+row.map(cell=>
+      cell ? `<div class="hex ${cell.carry?'carry':cell.role}">${cell.carry?'★':''}${esc(shortName(cell.name))}</div>`
+           : `<div class="hex empty"></div>`).join('')+`</div>`;
+  });
+  h+=`</div><div class="board-legend">위 = 후열(캐리·딜러) · 아래 = 전열(탱커) · 적은 아래쪽 ▼</div>`;
+  return h;
+}
+function guideHtml(name){
+  const g=DECK_GUIDE[name]; if(!g) return '';
+  let h=`<div class="label" style="margin-top:8px">스테이지별 운영</div>`;
+  h+=g.steps.map(s=>`<div class="gstep"><span class="gstage">${esc(s.s)}</span><span class="gtext">${esc(s.t)}</span></div>`).join('');
+  h+=`<div class="label" style="margin-top:10px">배치도 <span class="sub-hint">— 표준 포지션</span></div>`;
+  h+=boardHtml(g.board);
+  if(g.board.note) h+=`<div class="meta" style="margin-top:6px">📍 ${esc(g.board.note)}</div>`;
+  return h;
+}
+
 function renderDecks(q=""){
   q=q.trim().toLowerCase();
   const list = DECKS.filter(d=>{
@@ -516,6 +661,7 @@ function renderDecks(q=""){
       <div class="chips">${d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('')}</div>
       ${d.augments?.length?`<div class="label">추천 증강</div><div class="chips">${d.augments.map(a=>`<span class="chip star">${esc(a)}</span>`).join('')}</div>`:''}
       ${d.notes?`<div class="meta" style="margin-top:10px">💡 ${esc(d.notes)}</div>`:''}
+      ${DECK_GUIDE[d.name]?`<details class="dguide"><summary>레벨 가이드 · 배치도</summary>${guideHtml(d.name)}</details>`:''}
     </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
 }
 
