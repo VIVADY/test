@@ -195,6 +195,16 @@
   .ttype{font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; background:var(--bg3); color:var(--fg3);}
   .divider{border:none; border-top:1px solid var(--line); margin:18px 0;}
   .cost{display:inline-block; text-align:center; min-width:16px;}
+  /* 아이템 스텝퍼 / 골드 슬라이더 */
+  .stepper{display:inline-flex; align-items:center; gap:8px; background:var(--bg2); border:1px solid var(--line);
+    border-radius:12px; padding:5px 7px 5px 11px; margin:0 6px 6px 0;}
+  .stepper.on{border-color:rgba(240,180,41,.4);}
+  .stepper .sname{font-size:12.5px; color:var(--fg2);}
+  .stepper .scount{min-width:15px; text-align:center; font-weight:800; font-variant-numeric:tabular-nums;}
+  .sbtn{width:26px; height:26px; border-radius:8px; border:1px solid var(--line2); background:var(--bg3);
+    color:var(--fg); font-size:17px; font-weight:800; line-height:1; cursor:pointer; padding:0;}
+  .sbtn:active{background:var(--gold); color:#1a1204;}
+  .gold-range{width:100%; accent-color:var(--gold); height:30px; margin:2px 0 8px;}
 </style>
 </head>
 <body>
@@ -216,27 +226,31 @@
     <div class="col-title">🧭 덱 추천</div>
     <p class="reco-help">지금 <b>필드 유닛</b>을 입력하면 도감으로 <b>특성 현황·추가할 유닛·목표 덱</b>을 실시간 분석해요. 아래에서 <b>기본 아이템·레벨·증강</b>도 함께 넣으면 더 정확해져요.</p>
 
-    <div class="label">🔴 지금 필드 유닛 <span class="sub-hint">— 검색해서 추가 / 탭하면 제거</span></div>
-    <input class="search" id="unitSearch" placeholder="챔피언 검색해서 추가 (예: 리산드라)" style="margin-bottom:6px;">
+    <div class="label">🔴 지금 필드 유닛 <span class="sub-hint">— 코스트 골라 탭하면 추가/제거</span></div>
+    <div class="picker" id="unitCostTabs"></div>
+    <div class="picker" id="unitGrid"></div>
+    <input class="search" id="unitSearch" placeholder="또는 이름으로 검색…" style="margin:8px 0 6px;">
     <div class="picker" id="unitOptions"></div>
+    <div class="label" style="margin-top:8px;">선택한 유닛 <span id="unitSelCount" class="sub-hint"></span></div>
     <div class="picker" id="unitSelected"></div>
     <div id="unitResult"></div>
 
     <hr class="divider">
 
-    <div class="label">가진 기본 아이템 <span class="sub-hint">— 탭할 때마다 개수 ↑ (0→3)</span></div>
-    <div class="picker" id="compPicker"></div>
+    <div class="label">가진 기본 아이템 <span class="sub-hint">— − / + 로 개수 조절 (3개 이상 OK)</span></div>
+    <div id="compSteppers"></div>
 
-    <div class="label">현재 레벨 (선택)</div>
+    <div class="label" style="margin-top:12px;">현재 레벨 (선택)</div>
     <div class="picker" id="lvlPicker"></div>
-    <div class="row" style="gap:9px; align-items:center; margin-top:4px;">
-      <span style="font-size:13px; color:var(--fg2);">보유 골드</span>
-      <input id="goldInput" class="search" type="number" inputmode="numeric" placeholder="예: 50"
-             style="width:120px; margin:0; padding:8px 11px;">
-    </div>
 
-    <div class="label">받은 / 제안된 증강 (선택)</div>
-    <div class="picker" id="augPicker"></div>
+    <div class="label" style="margin-top:12px;">보유 골드 <span id="goldVal" class="sub-hint">— 미설정</span></div>
+    <input type="range" id="goldRange" min="0" max="100" step="1" value="0" class="gold-range">
+    <div class="picker" id="goldPresets"></div>
+
+    <div class="label" style="margin-top:12px;">제안된 증강 <span class="sub-hint">— 뜬 증강을 검색해 추가 (최대 3개)</span></div>
+    <input class="search" id="augSearch2" placeholder="증강 검색 (예: 침략자 제드)" style="margin-bottom:6px;">
+    <div class="picker" id="augOptions"></div>
+    <div class="picker" id="augSelected"></div>
 
     <div class="row" style="margin:12px 0 4px; justify-content:space-between;">
       <div class="label" style="margin:0;">추천 결과</div>
@@ -576,26 +590,44 @@ $('#deckSearch').oninput = e=>renderDecks(e.target.value);
 const COMPS8 = COMPONENTS.slice(0,8);                 // 기본 아이템 8종 (상징 제외)
 const RECIPE = {};                                    // 완성템 → [재료1, 재료2]
 COMBOS.forEach(c=>{ RECIPE[c.result] = c.recipe.split(" + "); });
-const counts = {}; COMPS8.forEach(c=>counts[c]=0);    // 가진 기본템 개수 (0~3)
-const gotAug = new Set();                             // 받은/제안된 증강
+const counts = {}; COMPS8.forEach(c=>counts[c]=0);    // 가진 기본템 개수
+const offeredAug = new Set();                         // 제안된(뜬) 증강 이름
 let curLevel = null;                                  // 현재 레벨
+let curGold = null;                                   // 보유 골드
 const TIER_ORDER = {S:0, A:1, B:2, C:3};
-const augName = s => s.split(' (')[0];
 const heldTotal = () => COMPS8.reduce((n,c)=>n+counts[c],0);
 const isReroll = d => /리롤/.test(d.playstyle + d.level);
+const AUG_BY_NAME = {}; (DB.augments||[]).forEach(a=>AUG_BY_NAME[a.n]=a);
+const GOLD_PRESETS = [0,10,20,30,50,80];
 
 function renderPickers(){
-  $('#compPicker').innerHTML = COMPS8.map(c=>{
+  $('#compSteppers').innerHTML = COMPS8.map(c=>{
     const n=counts[c];
-    return `<span class="pick ${n?'on':''}" data-c="${esc(c)}">${esc(c)}${n?` ×${n}`:''}</span>`;
+    return `<div class="stepper ${n?'on':''}"><span class="sname">${esc(c)}</span>`+
+      `<button class="sbtn" data-c="${esc(c)}" data-d="-1">−</button>`+
+      `<span class="scount">${n}</span>`+
+      `<button class="sbtn" data-c="${esc(c)}" data-d="1">+</button></div>`;
   }).join('');
   $('#lvlPicker').innerHTML = [4,5,6,7,8,9].map(l=>
     `<span class="pick ${curLevel===l?'on':''}" data-lvl="${l}">Lv ${l}</span>`).join('');
-  $('#augPicker').innerHTML = AUGMENTS.map(a=>
-    `<span class="pick ${gotAug.has(a.name)?'on':''}" data-a="${esc(a.name)}">${esc(augName(a.name))}</span>`).join('');
+  $('#goldVal').textContent = curGold===null ? '— 미설정' : `— ${curGold}골드`;
+  if(curGold!==null) $('#goldRange').value = curGold;
+  $('#goldPresets').innerHTML = GOLD_PRESETS.map(g=>
+    `<span class="pick ${curGold===g?'on':''}" data-g="${g}">${g}</span>`).join('');
 }
 
-// 덱 점수: 주력 캐리 완성템을 내 재료(개수)로 몇 개 만들 수 있나 (같은 재료 중복 소비 정확 반영)
+function renderAugInput(){
+  const q=($('#augSearch2').value||'').trim().toLowerCase();
+  const opts = q ? (DB.augments||[]).filter(a=>!offeredAug.has(a.n) && (a.n+(a.desc||'')).toLowerCase().includes(q)).slice(0,10) : [];
+  $('#augOptions').innerHTML = q
+    ? (opts.map(a=>`<span class="pick" data-a="${esc(a.n)}"><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span> ${esc(a.n)}</span>`).join('') || `<span class="seg">검색 결과 없음</span>`)
+    : '';
+  $('#augSelected').innerHTML = offeredAug.size
+    ? [...offeredAug].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
+    : `<span class="seg">뜬 증강을 검색해 추가하세요 (최대 3개)</span>`;
+}
+
+// 덱 점수: 주력 캐리 완성템을 내 재료(개수)로 몇 개 만들 수 있나
 function scoreDeck(d){
   const core = (d.carries[0]?.items || []).filter(it=>RECIPE[it]);
   const avail = {...counts};
@@ -612,35 +644,37 @@ function scoreDeck(d){
   });
   const pct = total ? matched/total : 0;
   let augBonus = 0;
-  (d.augments||[]).forEach(da=> gotAug.forEach(g=>{ if(da.includes(augName(g))) augBonus=0.15; }));
-  return { d, items, pct, ready, coreCount:core.length, augBonus,
-           score: pct + augBonus + ready*0.001 };
+  if(offeredAug.size){
+    const units=[...(d.carries||[]).map(c=>c.unit),...(d.comp||[])].map(u=>u.split('(')[0].trim());
+    [...offeredAug].forEach(n=>{const a=AUG_BY_NAME[n]; if(!a)return; const txt=a.n+' '+(a.desc||'');
+      if(units.some(u=>u&&txt.includes(u))) augBonus=0.15;});
+  }
+  return { d, items, pct, ready, coreCount:core.length, augBonus, score: pct + augBonus + ready*0.001 };
 }
 
-// 증강 적합도 (선택한 덱 기준)
-function augFit(a, d){
-  let s = a.type==='prismatic'?1.0 : a.type==='gold'?0.7 : 0.5;
-  if((d.augments||[]).some(da=>da.includes(augName(a.name)))) s += 0.6;
-  const rr = isReroll(d);
-  if(a.cat==='reroll')     s += rr ? 0.4 : -0.25;
-  else if(a.cat==='level') s += rr ? -0.25 : 0.3;
-  else if(a.cat==='econ')  s += 0.15;
+// 제안된 증강 적합도 (도감 258 기반): 티어 + 내 유닛/덱 유닛 관련성
+function augFitDB(a, d){
+  let s = a.tier==='prismatic'?1.0 : a.tier==='gold'?0.7 : 0.5;
+  const txt = a.n+' '+(a.desc||'');
+  if([...myUnits].some(n=>txt.includes(n))) s += 0.5;
+  else {
+    const units=[...(d.carries||[]).map(c=>c.unit),...(d.comp||[])].map(u=>u.split('(')[0].trim());
+    if(units.some(u=>u && txt.includes(u))) s += 0.3;
+  }
   return s;
 }
 function augAdvice(d){
-  const pool = gotAug.size ? AUGMENTS.filter(a=>gotAug.has(a.name)) : AUGMENTS;
-  const ranked = [...pool].map(a=>({a, f:augFit(a,d)})).sort((x,y)=>y.f-x.f).slice(0,4);
-  const title = gotAug.size ? '제안된 증강 중 추천' : '이 덱에 좋은 증강';
-  return `<div class="advice aug-pick"><b>✨ ${title}</b>`+
-    ranked.map((r,i)=>`<div class="aug-rec"><span class="rank">${i+1}</span><span>${esc(augName(r.a.name))}</span>${i===0?'<span class="best">BEST</span>':''}</div>`).join('')+
+  if(!offeredAug.size) return '';
+  const pool=[...offeredAug].map(n=>AUG_BY_NAME[n]).filter(Boolean);
+  const ranked=pool.map(a=>({a,f:augFitDB(a,d)})).sort((x,y)=>y.f-x.f);
+  return `<div class="advice aug-pick"><b>✨ 제안된 증강 중 추천</b>`+
+    ranked.map((r,i)=>`<div class="aug-rec"><span class="rank">${i+1}</span><span>${esc(r.a.n)} <span class="aug-tag ${r.a.tier}">${TIER_KO[r.a.tier]}</span></span>${i===0?'<span class="best">BEST</span>':''}</div>`).join('')+
     `</div>`;
 }
 
 // 롤/레벨 조언 (현재 레벨·골드 기반)
 function pathAdvice(d){
-  const goldVal = $('#goldInput').value;
-  if(curLevel===null && !goldVal) return '';
-  const gold = parseInt(goldVal,10);
+  if(curLevel===null && curGold===null) return '';
   const nums = (d.level.match(/\d+/g)||[]).map(Number);
   const rr = isReroll(d);
   const rollLv = nums[0] || (rr?7:8);
@@ -657,21 +691,21 @@ function pathAdvice(d){
     }
   }
   let goldLine = '';
-  if(!isNaN(gold)){
-    if(gold>=50)      goldLine = '💰 이자 최대(50골) 유지 중 👍';
-    else if(gold>=30) goldLine = '💰 급하지 않으면 50골까지 모아 이자 극대화.';
-    else              goldLine = '💰 골드 낮음 — 무리한 롤 주의, 연승/연패 보너스 관리.';
+  if(curGold!==null){
+    if(curGold>=50)      goldLine = '💰 이자 최대(50골) 유지 중 👍';
+    else if(curGold>=30) goldLine = '💰 급하지 않으면 50골까지 모아 이자 극대화.';
+    else                 goldLine = '💰 골드 낮음 — 무리한 롤 주의, 연승/연패 보너스 관리.';
   }
   if(!line && !goldLine) return '';
   return `<div class="advice"><b>🧭 지금 할 일</b><br>${line}${line&&goldLine?'<br>':''}${goldLine}</div>`;
 }
 
 function renderReco(){
-  const nothing = heldTotal()===0 && gotAug.size===0 && curLevel===null && !$('#goldInput').value;
+  const nothing = heldTotal()===0 && offeredAug.size===0 && curLevel===null && curGold===null;
   if(nothing){
     const list=[...DECKS].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]);
     $('#recoResult').innerHTML =
-      `<div class="reco-hint">👆 가진 기본 아이템을 탭하면 <b>내 재료에 유리한 순서</b>로 정렬돼요. 아래는 티어 순.</div>`+
+      `<div class="reco-hint">👆 기본 아이템·레벨·골드·증강을 넣으면 <b>유리한 순서</b>로 정렬돼요. 아래는 티어 순.</div>`+
       list.map(d=>`
         <div class="reco-card">
           <div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
@@ -696,14 +730,20 @@ function renderReco(){
     </div>`).join('');
 }
 
-$('#compPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
-  const c=el.dataset.c; counts[c]=(counts[c]+1)%4; renderPickers(); renderReco(); };
+$('#compSteppers').onclick = e=>{ const b=e.target.closest('.sbtn'); if(!b) return;
+  const c=b.dataset.c, d=+b.dataset.d; counts[c]=Math.max(0, Math.min(9, counts[c]+d)); renderPickers(); renderReco(); };
 $('#lvlPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
   const l=+el.dataset.lvl; curLevel = (curLevel===l ? null : l); renderPickers(); renderReco(); };
-$('#augPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
-  const a=el.dataset.a; gotAug.has(a)?gotAug.delete(a):gotAug.add(a); renderPickers(); renderReco(); };
-$('#goldInput').oninput = ()=>renderReco();
-$('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); gotAug.clear(); curLevel=null; $('#goldInput').value=''; renderPickers(); renderReco(); };
+$('#goldRange').oninput = e=>{ curGold=+e.target.value; renderPickers(); renderReco(); };
+$('#goldPresets').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  curGold=+el.dataset.g; $('#goldRange').value=curGold; renderPickers(); renderReco(); };
+$('#augSearch2').oninput = ()=>renderAugInput();
+$('#augOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.a) return;
+  if(offeredAug.size<3) offeredAug.add(el.dataset.a); $('#augSearch2').value=''; renderAugInput(); renderReco(); };
+$('#augSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
+  offeredAug.delete(el.dataset.rm); renderAugInput(); renderReco(); };
+$('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); offeredAug.clear(); curLevel=null; curGold=null;
+  $('#goldRange').value=0; $('#augSearch2').value=''; renderPickers(); renderAugInput(); renderReco(); };
 
 /* ===== 내 분석 & 코칭 ===== */
 const LS_KEY = 'tft_games_v1';
@@ -818,6 +858,7 @@ const parseTraits = c => ((c&&c.traits)||'').split(',').map(s=>s.trim()).filter(
   .map(s=>{const i=s.indexOf('(');return (i>=0?s.slice(0,i):s).trim();})
   .filter(t=>t && TRAIT_BP[t]);
 const myUnits = new Set();
+let unitCost = 1;
 
 function traitCounts(){
   const cnt={}; myUnits.forEach(n=>parseTraits(champByName[n]).forEach(t=>cnt[t]=(cnt[t]||0)+1)); return cnt;
@@ -846,14 +887,24 @@ function unitAugments(){
 }
 
 function renderUnitInputs(){
+  // 코스트 탭
+  $('#unitCostTabs').innerHTML = [1,2,3,4,5].map(c=>
+    `<span class="pick ${unitCost===c?'on':''}" data-uc="${c}">${c}코</span>`).join('');
+  // 선택 코스트 챔피언 그리드
+  const grid = CHAMPS.filter(c=>c.cost===unitCost).sort((a,b)=>a.n.localeCompare(b.n,'ko'));
+  $('#unitGrid').innerHTML = grid.map(c=>
+    `<span class="pick ${myUnits.has(c.n)?'on':''}" data-u="${esc(c.n)}">${esc(c.n)}</span>`).join('');
+  // 이름 검색 옵션
   const q=($('#unitSearch').value||'').trim().toLowerCase();
   const opts = q ? CHAMPS.filter(c=>!myUnits.has(c.n) && (c.n+c.e).toLowerCase().includes(q)).slice(0,12) : [];
   $('#unitOptions').innerHTML = q
     ? (opts.map(c=>`<span class="pick" data-u="${esc(c.n)}"><span class="cost c${c.cost}">${c.cost}</span> ${esc(c.n)}</span>`).join('') || `<span class="seg">검색 결과 없음</span>`)
     : '';
+  // 선택한 유닛
   $('#unitSelected').innerHTML = myUnits.size
     ? [...myUnits].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
-    : `<span class="seg">아직 없음 — 위에서 챔피언을 검색해 추가하세요</span>`;
+    : `<span class="seg">아직 없음 — 코스트 골라 챔피언을 탭하세요</span>`;
+  $('#unitSelCount').textContent = myUnits.size ? `(${myUnits.size})` : '';
 }
 function renderUnitResult(){
   if(myUnits.size===0){ $('#unitResult').innerHTML=''; return; }
@@ -901,13 +952,17 @@ function renderUnitResult(){
 }
 function renderUnit(){ renderUnitInputs(); renderUnitResult(); }
 
+$('#unitCostTabs').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  unitCost=+el.dataset.uc; renderUnitInputs(); };
+$('#unitGrid').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.u) return;
+  const n=el.dataset.u; myUnits.has(n)?myUnits.delete(n):myUnits.add(n); renderUnit(); };
 $('#unitSearch').oninput = ()=>renderUnitInputs();
 $('#unitOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.u) return;
   myUnits.add(el.dataset.u); $('#unitSearch').value=''; renderUnit(); };
 $('#unitSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
   myUnits.delete(el.dataset.rm); renderUnit(); };
 
-renderDecks(); renderPickers(); renderReco(); setDogamSub('champions'); renderUnit();
+renderDecks(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
 renderAnalysisInputs(); renderPref(); renderAnalysis();
 </script>
 </body>
