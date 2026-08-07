@@ -138,6 +138,25 @@
 
   .note{font-size:12px; color:var(--fg3); text-align:center; margin-top:22px; line-height:1.6;}
   .empty{color:var(--fg3); text-align:center; padding:30px 0;}
+
+  /* 덱 추천 */
+  .reco-help{font-size:13.5px; color:var(--fg2); line-height:1.55; margin:2px 0 6px;}
+  .picker{display:flex; flex-wrap:wrap; gap:7px; margin-bottom:4px;}
+  .pick{
+    font-size:13px; padding:8px 11px; border-radius:10px; cursor:pointer; user-select:none;
+    background:var(--bg2); border:1px solid var(--line); color:var(--fg2); transition:.12s;
+  }
+  .pick.on{background:var(--gold); color:#1a1204; border-color:transparent; font-weight:700;}
+  .reco-hint{font-size:12.5px; color:var(--fg3); line-height:1.5; margin-bottom:10px;}
+  .reco-card{background:var(--bg2); border:1px solid var(--line); border-radius:14px; padding:13px; margin-bottom:10px;}
+  .reco-card.top{border-color:rgba(240,180,41,.55); background:linear-gradient(180deg, rgba(240,180,41,.06), var(--bg2));}
+  .match-bar{height:7px; border-radius:4px; background:var(--bg3); overflow:hidden; margin:8px 0 9px;}
+  .match-fill{height:100%; background:linear-gradient(90deg, var(--gold), var(--green));}
+  .reco-items{display:flex; flex-wrap:wrap; gap:5px;}
+  .reco-item{font-size:12px; padding:4px 8px; border-radius:7px;}
+  .reco-item.ready{background:rgba(34,197,94,.15); color:var(--green);}
+  .reco-item.partial{background:rgba(240,180,41,.13); color:var(--gold);}
+  .reco-item.miss{background:var(--bg3); color:var(--fg3);}
 </style>
 </head>
 <body>
@@ -147,12 +166,28 @@
   <div class="patch" id="patchInfo">예시 데이터 · 최신 패치에 맞게 수정하세요</div>
   <div class="tabs">
     <div class="tab active" data-view="decks">추천 덱</div>
-    <div class="tab" data-view="items">아이템 조합</div>
-    <div class="tab" data-view="augs">증강 · 특성</div>
+    <div class="tab" data-view="reco">덱 추천</div>
+    <div class="tab" data-view="items">아이템</div>
+    <div class="tab" data-view="augs">증강</div>
   </div>
 </header>
 
 <main>
+  <!-- ============ 덱 추천 (내 재료 기반) ============ -->
+  <section class="view" id="view-reco">
+    <div class="col-title">🧭 덱 추천</div>
+    <p class="reco-help">지금 가진 <b>기본 아이템</b>과 받은 <b>증강</b>을 탭하면, 내 재료로 만들기 유리한 덱을 <b>매칭률 순</b>으로 추천해요.</p>
+    <div class="label">가진 기본 아이템 <span id="heldCount" style="color:var(--gold)"></span></div>
+    <div class="picker" id="compPicker"></div>
+    <div class="label">받은 증강 (선택)</div>
+    <div class="picker" id="augPicker"></div>
+    <div class="row" style="margin:10px 0 4px; justify-content:space-between;">
+      <div class="label" style="margin:0;">추천 결과</div>
+      <span id="recoReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 초기화</span>
+    </div>
+    <div id="recoResult"></div>
+  </section>
+
  <div class="board">
   <!-- ============ 추천 덱 ============ -->
   <section class="view active" id="view-decks">
@@ -400,7 +435,76 @@ $('#deckSearch').oninput = e=>renderDecks(e.target.value);
 $('#itemSearch').oninput = e=>renderItems(e.target.value);
 $('#augSearch').oninput  = e=>renderAugs(e.target.value);
 
-renderDecks(); renderItems(); renderAugs();
+/* ===== 덱 추천 로직 ===== */
+const COMPS8 = COMPONENTS.slice(0,8);                 // 기본 아이템 8종 (엠블럼 제외)
+const RECIPE = {};                                    // 완성템 → [재료1, 재료2]
+COMBOS.forEach(c=>{ RECIPE[c.result] = c.recipe.split(" + "); });
+const held = new Set();      // 내가 가진 기본템
+const gotAug = new Set();    // 받은 증강
+const TIER_ORDER = {S:0, A:1, B:2, C:3};
+
+function renderPickers(){
+  $('#compPicker').innerHTML = COMPS8.map(c=>`<span class="pick ${held.has(c)?'on':''}" data-c="${esc(c)}">${esc(c)}</span>`).join('');
+  $('#augPicker').innerHTML  = AUGMENTS.map(a=>`<span class="pick ${gotAug.has(a.name)?'on':''}" data-a="${esc(a.name)}">${esc(a.name.split(' (')[0])}</span>`).join('');
+  $('#heldCount').textContent = held.size ? `· ${held.size}개 선택` : '';
+}
+
+// 덱 점수 계산: 주력 캐리의 완성템 중 내 재료로 만들 수 있는 비율
+function scoreDeck(d){
+  const core = (d.carries[0]?.items || []).filter(it=>RECIPE[it]);   // 실제 완성템만
+  let matched=0, total=0, ready=0;
+  const items = core.map(it=>{
+    const [a,b] = RECIPE[it];
+    const have = (held.has(a)?1:0) + (held.has(b)?1:0);
+    matched += have; total += 2;
+    if(have===2){ ready++; return {it, state:'ready', miss:[]}; }
+    if(have===1){ return {it, state:'partial', miss:[held.has(a)?b:a]}; }
+    return {it, state:'miss', miss:[a,b]};
+  });
+  const pct = total ? matched/total : 0;
+  let augBonus = 0;
+  (d.augments||[]).forEach(da=> gotAug.forEach(g=>{ if(da.includes(g.split(' (')[0])) augBonus=0.15; }));
+  return { d, items, pct, ready, coreCount:core.length, augBonus,
+           score: pct + augBonus + ready*0.001 };
+}
+
+function renderReco(){
+  // 아무것도 선택 안 했으면 티어순 기본 목록
+  if(held.size===0 && gotAug.size===0){
+    const list=[...DECKS].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]);
+    $('#recoResult').innerHTML =
+      `<div class="reco-hint">👆 가진 기본 아이템을 탭하면 <b>내 재료에 유리한 순서</b>로 다시 정렬돼요. 아래는 티어 순.</div>`+
+      list.map(d=>`
+        <div class="reco-card">
+          <div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
+          <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+        </div>`).join('');
+    return;
+  }
+  const ranked = DECKS.map(scoreDeck).sort((a,b)=>b.score-a.score);
+  $('#recoResult').innerHTML = ranked.map((r,i)=>`
+    <div class="reco-card ${i===0?'top':''}">
+      <div class="card-head">
+        <div class="deck-name" style="font-size:15px">${i===0?'⭐ ':''}${esc(r.d.name)}</div>
+        <span class="tier ${r.d.tier}">${r.d.tier}</span>
+      </div>
+      <div class="meta">재료 매칭 ${Math.round(r.pct*100)}% · 핵심템 ${r.ready}/${r.coreCount} 제작 가능${r.augBonus?' · 증강 적합 ✓':''}</div>
+      <div class="match-bar"><div class="match-fill" style="width:${Math.round(r.pct*100)}%"></div></div>
+      <div class="reco-items">${r.items.map(x=>`
+        <span class="reco-item ${x.state}">${x.state==='ready'?'✓ ':x.state==='partial'?'◑ ':'· '}${esc(x.it)}${x.miss.length?` <span style="opacity:.75">(필요: ${x.miss.map(esc).join(', ')})</span>`:''}</span>`).join('')}
+      </div>
+      <div class="meta" style="margin-top:9px">🧭 Lv ${esc(r.d.level)} · ${esc(r.d.playstyle)}</div>
+      ${i===0 && r.d.notes ? `<div class="meta" style="margin-top:6px">💡 ${esc(r.d.notes)}</div>` : ''}
+    </div>`).join('');
+}
+
+$('#compPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  const c=el.dataset.c; held.has(c)?held.delete(c):held.add(c); renderPickers(); renderReco(); };
+$('#augPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  const a=el.dataset.a; gotAug.has(a)?gotAug.delete(a):gotAug.add(a); renderPickers(); renderReco(); };
+$('#recoReset').onclick = ()=>{ held.clear(); gotAug.clear(); renderPickers(); renderReco(); };
+
+renderDecks(); renderItems(); renderAugs(); renderPickers(); renderReco();
 </script>
 </body>
 </html>
