@@ -56,6 +56,27 @@
 
   main{padding:14px 16px 40px; max-width:720px; margin:0 auto;}
   .view{display:none;} .view.active{display:block;}
+  .col-title{display:none;} /* 아이폰에선 탭이 제목 역할 → 숨김 */
+
+  /* =========================================================
+     ★ 아이패드/넓은 화면 (가로 900px 이상): 3단 대시보드
+       탭 없이 추천덱·아이템·증강을 한 화면에 동시에 표시
+     ========================================================= */
+  @media (min-width:900px){
+    header .tabs{display:none;}                 /* 탭 숨김 */
+    header .patch{margin-top:4px;}
+    main{max-width:1280px; padding:20px 22px 48px;}
+    .board{
+      display:grid; grid-template-columns:1.1fr 1fr 1.1fr; gap:18px; align-items:start;
+    }
+    .view{display:block !important;}            /* 세 섹션 항상 표시 */
+    .col-title{
+      display:block; font-size:16px; font-weight:800; letter-spacing:-.02em;
+      padding-bottom:10px; margin-bottom:10px; border-bottom:1px solid var(--line2);
+    }
+    .combo-grid{grid-template-columns:1fr;}     /* 좁은 컬럼이라 1줄씩 */
+    .note{grid-column:1 / -1;}
+  }
 
   /* 검색 */
   .search{
@@ -132,14 +153,17 @@
 </header>
 
 <main>
+ <div class="board">
   <!-- ============ 추천 덱 ============ -->
   <section class="view active" id="view-decks">
+    <div class="col-title">♟️ 추천 덱</div>
     <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 제이스, 리롤)" />
     <div id="deckList"></div>
   </section>
 
   <!-- ============ 아이템 조합 ============ -->
   <section class="view" id="view-items">
+    <div class="col-title">🛡️ 아이템 조합</div>
     <div class="label">기본 아이템 (조합 재료)</div>
     <div class="comp-legend" id="compLegend"></div>
     <input class="search" id="itemSearch" placeholder="완성 아이템 검색 (예: 무한의 대검)" />
@@ -148,12 +172,14 @@
 
   <!-- ============ 증강 · 특성 ============ -->
   <section class="view" id="view-augs">
+    <div class="col-title">✨ 증강 · 특성</div>
     <input class="search" id="augSearch" placeholder="증강·특성 검색" />
     <div class="label">추천 증강</div>
     <div id="augList"></div>
     <div class="label" style="margin-top:18px;">특성 활성화 구간</div>
     <div id="traitList"></div>
   </section>
+ </div>
 
   <div class="note">
     📌 이 앱은 <b>예시 데이터</b>로 채워져 있어요.<br>
