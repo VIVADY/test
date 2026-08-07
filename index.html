@@ -193,6 +193,8 @@
   .cost.c4{background:rgba(168,85,247,.16); color:var(--purple);}
   .cost.c5{background:rgba(240,180,41,.16); color:var(--gold);}
   .ttype{font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; background:var(--bg3); color:var(--fg3);}
+  .divider{border:none; border-top:1px solid var(--line); margin:18px 0;}
+  .cost{display:inline-block; text-align:center; min-width:16px;}
 </style>
 </head>
 <body>
@@ -212,7 +214,15 @@
   <!-- ============ 덱 추천 (내 재료 기반) ============ -->
   <section class="view" id="view-reco">
     <div class="col-title">🧭 덱 추천</div>
-    <p class="reco-help">가진 <b>기본 아이템</b>·받은 <b>증강</b>·현재 <b>레벨/골드</b>를 입력하면, 유리한 덱을 <b>매칭률 순</b>으로 추천하고 <b>롤·레벨·증강 선택</b>까지 조언해요.</p>
+    <p class="reco-help">지금 <b>필드 유닛</b>을 입력하면 도감으로 <b>특성 현황·추가할 유닛·목표 덱</b>을 실시간 분석해요. 아래에서 <b>기본 아이템·레벨·증강</b>도 함께 넣으면 더 정확해져요.</p>
+
+    <div class="label">🔴 지금 필드 유닛 <span class="sub-hint">— 검색해서 추가 / 탭하면 제거</span></div>
+    <input class="search" id="unitSearch" placeholder="챔피언 검색해서 추가 (예: 리산드라)" style="margin-bottom:6px;">
+    <div class="picker" id="unitOptions"></div>
+    <div class="picker" id="unitSelected"></div>
+    <div id="unitResult"></div>
+
+    <hr class="divider">
 
     <div class="label">가진 기본 아이템 <span class="sub-hint">— 탭할 때마다 개수 ↑ (0→3)</span></div>
     <div class="picker" id="compPicker"></div>
@@ -800,7 +810,84 @@ $('#logBtn').onclick = ()=>{ const deck=$('#logDeck').value; if(!deck||!curPlace
   curPlace=null; $('#logDeck').value=''; renderAnalysisInputs(); renderAnalysis(); };
 $('#analysisReset').onclick = ()=>{ if(confirm('기록을 모두 삭제할까요?')){ games=[]; saveGames(); renderAnalysis(); } };
 
-renderDecks(); renderPickers(); renderReco(); setDogamSub('champions');
+/* ===== 실시간 유닛 기반 추천 (도감 데이터 활용) ===== */
+const CHAMPS = DB.champions || [];
+const TRAIT_BP = {}; (DB.traits||[]).forEach(t=>{ TRAIT_BP[t.n]=(t.br.match(/\d+/g)||[]).map(Number); });
+const champByName = {}; CHAMPS.forEach(c=>champByName[c.n]=c);
+const parseTraits = c => ((c&&c.traits)||'').split(',').map(s=>s.trim()).filter(Boolean)
+  .map(s=>{const i=s.indexOf('(');return (i>=0?s.slice(0,i):s).trim();})
+  .filter(t=>t && TRAIT_BP[t]);
+const myUnits = new Set();
+
+function traitCounts(){
+  const cnt={}; myUnits.forEach(n=>parseTraits(champByName[n]).forEach(t=>cnt[t]=(cnt[t]||0)+1)); return cnt;
+}
+function nextUnitSuggestions(cnt){
+  return CHAMPS.filter(c=>!myUnits.has(c.n)).map(c=>{
+    let s=0, help=[];
+    parseTraits(c).forEach(t=>{ const cc=cnt[t]||0; if(cc<1) return; const next=TRAIT_BP[t].find(b=>b>cc);
+      if(next!==undefined){ s += (cc+1===next?3:1); help.push(t); } });
+    return {c, s, help};
+  }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s || a.c.cost-b.c.cost).slice(0,6);
+}
+function bestDeck(){
+  const names=[...myUnits]; if(!names.length) return null;
+  const ranked = DECKS.map(d=>{
+    const comp=[...(d.carries||[]).map(c=>c.unit), ...(d.comp||[])];
+    const matched=names.filter(n=> comp.some(u=>u.includes(n)) ).length;
+    return {d, matched, comp};
+  }).filter(x=>x.matched>0).sort((a,b)=>b.matched-a.matched || TIER_ORDER[a.d.tier]-TIER_ORDER[b.d.tier]);
+  return ranked[0] || null;
+}
+
+function renderUnitInputs(){
+  const q=($('#unitSearch').value||'').trim().toLowerCase();
+  const opts = q ? CHAMPS.filter(c=>!myUnits.has(c.n) && (c.n+c.e).toLowerCase().includes(q)).slice(0,12) : [];
+  $('#unitOptions').innerHTML = q
+    ? (opts.map(c=>`<span class="pick" data-u="${esc(c.n)}"><span class="cost c${c.cost}">${c.cost}</span> ${esc(c.n)}</span>`).join('') || `<span class="seg">검색 결과 없음</span>`)
+    : '';
+  $('#unitSelected').innerHTML = myUnits.size
+    ? [...myUnits].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
+    : `<span class="seg">아직 없음 — 위에서 챔피언을 검색해 추가하세요</span>`;
+}
+function renderUnitResult(){
+  if(myUnits.size===0){ $('#unitResult').innerHTML=''; return; }
+  const cnt=traitCounts();
+  const active=Object.entries(cnt).map(([t,c])=>{const bp=TRAIT_BP[t],a=[...bp].reverse().find(b=>b<=c),next=bp.find(b=>b>c);
+      return {t,c,a,next,need:next!==undefined?next-c:0};})
+    .filter(x=>x.c>=2)
+    .sort((a,b)=>(b.a||0)-(a.a||0) || b.c-a.c);
+  const sugg=nextUnitSuggestions(cnt);
+  const bd=bestDeck();
+  let html = `<div class="label" style="margin-top:10px">활성 특성</div>`;
+  html += active.length
+    ? `<div class="chips">`+active.map(x=>`<span class="chip ${x.need===1?'star':''}">${esc(x.t)} ${x.c}${x.a?'★':''}${x.need===1?' · 1명 더!':x.next?` /${x.next}`:' (MAX)'}</span>`).join('')+`</div>`
+    : `<div class="seg">2명 이상 모인 특성이 아직 없어요</div>`;
+  html += `<div class="label" style="margin-top:12px">추가하면 좋은 유닛</div>`;
+  html += sugg.length
+    ? `<div class="chips">`+sugg.map(x=>`<span class="chip"><span class="cost c${x.c.cost}">${x.c.cost}</span> ${esc(x.c.n)} <span style="opacity:.6">${esc(x.help.slice(0,2).join(', '))}</span></span>`).join('')+`</div>`
+    : `<div class="seg">추천 유닛 없음</div>`;
+  if(bd){
+    const missing=bd.comp.filter(u=>![...myUnits].some(n=>u.includes(n)));
+    const car=bd.d.carries&&bd.d.carries[0];
+    html += `<div class="reco-card top" style="margin-top:12px">
+      <div class="card-head"><div class="deck-name" style="font-size:15px">🎯 목표 덱: ${esc(bd.d.name)}</div><span class="tier ${bd.d.tier}">${bd.d.tier}</span></div>
+      <div class="meta">현재 유닛 ${bd.matched}개 일치 · Lv ${esc(bd.d.level)} · ${esc(bd.d.playstyle)}</div>
+      ${car?`<div class="meta" style="margin-top:6px">캐리: ${esc(car.unit)} — ${(car.items||[]).map(esc).join(', ')}</div>`:''}
+      ${missing.length?`<div class="meta" style="margin-top:6px">더 필요: ${missing.slice(0,8).map(esc).join(', ')}</div>`:''}
+    </div>`;
+  }
+  $('#unitResult').innerHTML = html;
+}
+function renderUnit(){ renderUnitInputs(); renderUnitResult(); }
+
+$('#unitSearch').oninput = ()=>renderUnitInputs();
+$('#unitOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.u) return;
+  myUnits.add(el.dataset.u); $('#unitSearch').value=''; renderUnit(); };
+$('#unitSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
+  myUnits.delete(el.dataset.rm); renderUnit(); };
+
+renderDecks(); renderPickers(); renderReco(); setDogamSub('champions'); renderUnit();
 renderAnalysisInputs(); renderPref(); renderAnalysis();
 </script>
 </body>
