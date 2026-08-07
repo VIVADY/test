@@ -830,14 +830,19 @@ function nextUnitSuggestions(cnt){
     return {c, s, help};
   }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s || a.c.cost-b.c.cost).slice(0,6);
 }
-function bestDeck(){
-  const names=[...myUnits]; if(!names.length) return null;
-  const ranked = DECKS.map(d=>{
+function bestDecks(){
+  const names=[...myUnits]; if(!names.length) return [];
+  return DECKS.map(d=>{
     const comp=[...(d.carries||[]).map(c=>c.unit), ...(d.comp||[])];
     const matched=names.filter(n=> comp.some(u=>u.includes(n)) ).length;
-    return {d, matched, comp};
-  }).filter(x=>x.matched>0).sort((a,b)=>b.matched-a.matched || TIER_ORDER[a.d.tier]-TIER_ORDER[b.d.tier]);
-  return ranked[0] || null;
+    return {d, matched, total:comp.length, pct:Math.round(matched/comp.length*100), comp};
+  }).filter(x=>x.matched>0).sort((a,b)=>b.matched-a.matched || TIER_ORDER[a.d.tier]-TIER_ORDER[b.d.tier]).slice(0,3);
+}
+function unitAugments(){
+  const names=[...myUnits]; if(!names.length) return [];
+  const ord={prismatic:0,gold:1,silver:2};
+  return (DB.augments||[]).filter(a=> names.some(n=> a.n.includes(n) || (a.desc||'').includes(n)))
+    .sort((a,b)=>ord[a.tier]-ord[b.tier]).slice(0,8);
 }
 
 function renderUnitInputs(){
@@ -858,25 +863,40 @@ function renderUnitResult(){
     .filter(x=>x.c>=2)
     .sort((a,b)=>(b.a||0)-(a.a||0) || b.c-a.c);
   const sugg=nextUnitSuggestions(cnt);
-  const bd=bestDeck();
+  const decks=bestDecks();
+  const augs=unitAugments();
+
   let html = `<div class="label" style="margin-top:10px">활성 특성</div>`;
   html += active.length
     ? `<div class="chips">`+active.map(x=>`<span class="chip ${x.need===1?'star':''}">${esc(x.t)} ${x.c}${x.a?'★':''}${x.need===1?' · 1명 더!':x.next?` /${x.next}`:' (MAX)'}</span>`).join('')+`</div>`
     : `<div class="seg">2명 이상 모인 특성이 아직 없어요</div>`;
-  html += `<div class="label" style="margin-top:12px">추가하면 좋은 유닛</div>`;
+
+  html += `<div class="label" style="margin-top:12px">추가하면 좋은 유닛 <span class="sub-hint">— 삼신기 포함</span></div>`;
   html += sugg.length
-    ? `<div class="chips">`+sugg.map(x=>`<span class="chip"><span class="cost c${x.c.cost}">${x.c.cost}</span> ${esc(x.c.n)} <span style="opacity:.6">${esc(x.help.slice(0,2).join(', '))}</span></span>`).join('')+`</div>`
+    ? sugg.map(x=>`<div class="dcard" style="padding:9px 11px; margin-bottom:6px">
+        <div class="dh"><span class="cost c${x.c.cost}">${x.c.cost}</span><span class="nm" style="font-size:13.5px">${esc(x.c.n)}</span><span class="en">${esc(x.help.slice(0,3).join(', '))}</span></div>
+        ${x.c.items?`<div class="kv"><b>삼신기</b> ${esc(x.c.items)}</div>`:''}
+      </div>`).join('')
     : `<div class="seg">추천 유닛 없음</div>`;
-  if(bd){
-    const missing=bd.comp.filter(u=>![...myUnits].some(n=>u.includes(n)));
-    const car=bd.d.carries&&bd.d.carries[0];
-    html += `<div class="reco-card top" style="margin-top:12px">
-      <div class="card-head"><div class="deck-name" style="font-size:15px">🎯 목표 덱: ${esc(bd.d.name)}</div><span class="tier ${bd.d.tier}">${bd.d.tier}</span></div>
-      <div class="meta">현재 유닛 ${bd.matched}개 일치 · Lv ${esc(bd.d.level)} · ${esc(bd.d.playstyle)}</div>
-      ${car?`<div class="meta" style="margin-top:6px">캐리: ${esc(car.unit)} — ${(car.items||[]).map(esc).join(', ')}</div>`:''}
-      ${missing.length?`<div class="meta" style="margin-top:6px">더 필요: ${missing.slice(0,8).map(esc).join(', ')}</div>`:''}
+
+  html += `<div class="label" style="margin-top:12px">🎯 목표 덱 <span class="sub-hint">— 내 유닛 겹침 순</span></div>`;
+  html += decks.length ? decks.map((b,i)=>{
+    const missing=b.comp.filter(u=>![...myUnits].some(n=>u.includes(n)));
+    const car=b.d.carries&&b.d.carries[0];
+    return `<div class="reco-card ${i===0?'top':''}">
+      <div class="card-head"><div class="deck-name" style="font-size:15px">${i===0?'⭐ ':''}${esc(b.d.name)}</div><span class="tier ${b.d.tier}">${b.d.tier}</span></div>
+      <div class="meta">완성도 ${b.pct}% · 유닛 ${b.matched}/${b.total} · Lv ${esc(b.d.level)}</div>
+      <div class="match-bar"><div class="match-fill" style="width:${b.pct}%"></div></div>
+      ${i===0&&car?`<div class="meta" style="margin-top:6px">캐리: ${esc(car.unit)} — ${(car.items||[]).map(esc).join(', ')}</div>`:''}
+      ${i===0&&missing.length?`<div class="meta" style="margin-top:4px">더 필요: ${missing.slice(0,8).map(esc).join(', ')}</div>`:''}
     </div>`;
+  }).join('') : `<div class="seg">겹치는 추천덱 없음 — 특성 기반으로 자유롭게 운영하세요</div>`;
+
+  if(augs.length){
+    html += `<div class="label" style="margin-top:12px">✨ 내 유닛 관련 증강</div>`;
+    html += augs.map(a=>`<div class="aug ${a.tier}"><span class="aug-name">${esc(a.n)}</span><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span>${a.when?`<span class="seg" style="margin-left:6px">${esc(a.when)}</span>`:''}<div class="aug-desc">${esc(a.desc||'')}</div></div>`).join('');
   }
+
   $('#unitResult').innerHTML = html;
 }
 function renderUnit(){ renderUnitInputs(); renderUnitResult(); }
