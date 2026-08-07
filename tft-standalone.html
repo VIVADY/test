@@ -832,21 +832,17 @@ function renderAugInput(){
     .map(([v,l])=>`<span class="pick ${augTier===v?'on':''}" data-at="${v}">${l}</span>`).join('');
   const q=($('#augSearch2').value||'').trim().toLowerCase();
   const box=$('#augOptions');
-  if(!augTier && !q){
-    box.className='picker';
-    box.innerHTML=`<span class="seg">티어(프리즘·골드·실버)를 고르면 목록이 떠요. 이름 검색도 가능.</span>`;
-  } else {
-    const list=(DB.augments||[]).filter(a=>!offeredAug.has(a.n)
-      && (!augTier || a.tier===augTier)
-      && (!q || (a.n+(a.desc||'')).toLowerCase().includes(q)))
-      .sort((a,b)=>a.n.localeCompare(b.n,'ko'));
-    const shown=list.slice(0,80);
-    box.className='picker aug-scroll';
-    box.innerHTML = shown.length
-      ? shown.map(a=>`<span class="pick" data-a="${esc(a.n)}"><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span> ${esc(a.n)}</span>`).join('')
-        + (list.length>shown.length?`<span class="seg">…${list.length-shown.length}개 더 · 검색으로 좁혀보세요</span>`:'')
-      : `<span class="seg">결과 없음</span>`;
-  }
+  // 터치 우선: 목록을 항상 표시 (티어 탭으로 좁히고, 검색은 보조)
+  const list=(DB.augments||[]).filter(a=>!offeredAug.has(a.n)
+    && (!augTier || a.tier===augTier)
+    && (!q || (a.n+(a.desc||'')).toLowerCase().includes(q)))
+    .sort((a,b)=>a.n.localeCompare(b.n,'ko'));
+  const shown=list.slice(0,80);
+  box.className='picker aug-scroll';
+  box.innerHTML = shown.length
+    ? shown.map(a=>`<span class="pick" data-a="${esc(a.n)}"><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span> ${esc(a.n)}</span>`).join('')
+      + (list.length>shown.length?`<span class="seg">…${list.length-shown.length}개 더 · 티어 선택/검색으로 좁히기</span>`:'')
+    : `<span class="seg">결과 없음</span>`;
   $('#augSelected').innerHTML = offeredAug.size
     ? [...offeredAug].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
     : `<span class="seg">뜬 증강을 골라 추가하세요 (최대 3개)</span>`;
