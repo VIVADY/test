@@ -165,6 +165,24 @@
   .aug-rec:first-child{border-top:none;}
   .aug-rec .rank{font-weight:800; color:var(--gold); width:16px; text-align:center;}
   .aug-rec .best{margin-left:auto; font-size:10.5px; font-weight:800; color:var(--green);}
+
+  /* 내 분석 & 코칭 */
+  .logbtn{width:100%; margin-top:10px; padding:12px; border-radius:12px; border:none;
+    background:var(--gold); color:#1a1204; font-weight:800; font-size:15px; cursor:pointer;}
+  .logbtn:disabled{opacity:.45; cursor:default;}
+  .stat-row{display:grid; grid-template-columns:repeat(4,1fr); gap:8px; margin:4px 0 12px;}
+  .stat{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:11px 6px; text-align:center;}
+  .stat .v{font-size:20px; font-weight:800; letter-spacing:-.02em;}
+  .stat .k{font-size:10px; color:var(--fg3); margin-top:3px;}
+  .dtable{width:100%; font-size:13px; border-collapse:collapse; margin-bottom:4px;}
+  .dtable th, .dtable td{padding:6px 4px; border-bottom:1px solid var(--line); text-align:left;}
+  .dtable th{color:var(--fg3); font-weight:600; font-size:11px;}
+  .dtable td.num, .dtable th.num{text-align:right; font-variant-numeric:tabular-nums;}
+  .tip{background:var(--bg2); border:1px solid var(--line); border-left:3px solid var(--gold);
+    border-radius:10px; padding:10px 12px; margin-bottom:8px;}
+  .tip .tt{font-weight:700; font-size:13.5px;}
+  .tip .td2{font-size:12.5px; color:var(--fg2); margin-top:3px; line-height:1.5;}
+  .seg{display:inline-block; font-size:11px; color:var(--fg3); margin-top:6px;}
 </style>
 </head>
 <body>
@@ -173,10 +191,11 @@
   <div class="title"><span class="dot">♟️</span> TFT 도우미</div>
   <div class="patch" id="patchInfo">예시 데이터 · 최신 패치에 맞게 수정하세요</div>
   <div class="tabs">
-    <div class="tab active" data-view="decks">추천 덱</div>
-    <div class="tab" data-view="reco">덱 추천</div>
+    <div class="tab active" data-view="decks">추천덱</div>
+    <div class="tab" data-view="reco">덱추천</div>
     <div class="tab" data-view="items">아이템</div>
     <div class="tab" data-view="augs">증강</div>
+    <div class="tab" data-view="analysis">분석</div>
   </div>
 </header>
 
@@ -234,6 +253,28 @@
     <div id="traitList"></div>
   </section>
  </div>
+
+  <!-- ============ 내 분석 & 코칭 ============ -->
+  <section class="view" id="view-analysis">
+    <div class="col-title">📈 내 분석 & 코칭</div>
+    <p class="reco-help">내 <b>선호 운영</b>을 고르고, 게임이 끝날 때마다 <b>덱·등수</b>를 기록하면 성향·강점·약점을 분석해 <b>맞춤 코칭</b>을 줘요. (기록은 이 기기에 저장돼요)</p>
+
+    <div class="label">내 선호 운영 — 맞는 덱 추천</div>
+    <div class="picker" id="prefPicker"></div>
+    <div id="prefResult"></div>
+
+    <div class="label" style="margin-top:16px;">게임 기록 추가</div>
+    <select id="logDeck" class="search" style="margin-bottom:6px;"></select>
+    <div class="label" style="margin:2px 0 5px;">최종 등수</div>
+    <div class="picker" id="placePicker"></div>
+    <button id="logBtn" class="logbtn" disabled>＋ 이 판 기록하기</button>
+
+    <div class="row" style="margin:16px 0 6px; justify-content:space-between;">
+      <div class="label" style="margin:0;">내 통계 &amp; 코칭</div>
+      <span id="analysisReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 기록 삭제</span>
+    </div>
+    <div id="analysisResult"></div>
+  </section>
 
   <div class="note">
     📌 <b>Set 17: Space Gods · 패치 17.8</b> 기준 실제 데이터 (2026-08-07)<br>
@@ -617,7 +658,113 @@ $('#augPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) retur
 $('#goldInput').oninput = ()=>renderReco();
 $('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); gotAug.clear(); curLevel=null; $('#goldInput').value=''; renderPickers(); renderReco(); };
 
+/* ===== 내 분석 & 코칭 ===== */
+const LS_KEY = 'tft_games_v1';
+let games = [];
+try { games = JSON.parse(localStorage.getItem(LS_KEY) || '[]') || []; } catch(e){ games = []; }
+function saveGames(){ try { localStorage.setItem(LS_KEY, JSON.stringify(games)); } catch(e){} }
+const pct = x => Math.round(x*100)+'%';
+let curPlace = null;
+let prefSel = null;
+
+function renderAnalysisInputs(){
+  $('#prefPicker').innerHTML = [['reroll','리롤'],['fast','레벨링'],['flex','유연']]
+    .map(([k,l])=>`<span class="pick ${prefSel===k?'on':''}" data-pref="${k}">${l}</span>`).join('');
+  $('#logDeck').innerHTML = `<option value="">덱 선택…</option>`+
+    DECKS.map(d=>`<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('')+
+    `<option value="기타">기타</option>`;
+  $('#placePicker').innerHTML = [1,2,3,4,5,6,7,8]
+    .map(p=>`<span class="pick ${curPlace===p?'on':''}" data-p="${p}">${p}등</span>`).join('');
+  $('#logBtn').disabled = !($('#logDeck').value && curPlace);
+}
+
+function renderPref(){
+  if(!prefSel){ $('#prefResult').innerHTML=''; return; }
+  let list;
+  if(prefSel==='reroll')    list = DECKS.filter(d=>isReroll(d));
+  else if(prefSel==='fast') list = DECKS.filter(d=>!isReroll(d));
+  else                      list = DECKS.filter(d=>d.tier==='S'||d.tier==='A');
+  list = [...list].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]).slice(0,4);
+  $('#prefResult').innerHTML = `<div class="reco-hint" style="margin:6px 0 8px">이 스타일에 맞는 덱:</div>`+
+    list.map(d=>`<div class="reco-card"><div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div><div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div></div>`).join('');
+}
+
+const styleOf = name => { const dk=DECKS.find(D=>D.name===name); return dk ? (isReroll(dk)?'리롤':'레벨링') : '기타'; };
+
+function analyze(){
+  const g=games, n=g.length; if(!n) return null;
+  const avg = g.reduce((s,x)=>s+x.place,0)/n;
+  const top4 = g.filter(x=>x.place<=4).length/n;
+  const first = g.filter(x=>x.place===1).length/n;
+  const byDeck={}; g.forEach(x=>{ (byDeck[x.deck]=byDeck[x.deck]||[]).push(x.place); });
+  const deckStats = Object.entries(byDeck).map(([d,ps])=>({d,n:ps.length,avg:ps.reduce((a,b)=>a+b,0)/ps.length})).sort((a,b)=>a.avg-b.avg);
+  const byStyle={}; g.forEach(x=>{ const s=styleOf(x.deck); (byStyle[s]=byStyle[s]||[]).push(x.place); });
+  const styleStats = Object.entries(byStyle).map(([s,ps])=>({s,n:ps.length,avg:ps.reduce((a,b)=>a+b,0)/ps.length}));
+  const maxShare = Math.max(...deckStats.map(d=>d.n))/n;
+  return {n,avg,top4,first,deckStats,styleStats,maxShare};
+}
+
+function coachTips(A){
+  const t=[];
+  if(A.n<5) t.push(['표본이 적어요','최소 5~10판을 기록하면 성향 분석이 정확해져요.']);
+  if(A.top4<0.4) t.push([`탑4율이 낮아요 (${pct(A.top4)})`,'기본기 점검: 체력 관리, 아이템 슬램(재료 방치 금지), 연승/연패 라인 관리.']);
+  else if(A.top4>=0.5 && A.first<0.12) t.push(['안정적인데 1등이 적어요','2~4등은 잘 잡아요. 후반 포지셔닝·아이템 퀄리티를 다듬고 하이롤 판에서 1등을 노려보세요.']);
+  if(A.styleStats.length>=2){
+    const s=[...A.styleStats].sort((a,b)=>a.avg-b.avg);
+    const best=s[0], worst=s[s.length-1];
+    if(best.n>=3 && worst.n>=3 && worst.avg-best.avg>=0.8)
+      t.push([`${best.s} 덱이 더 잘 맞아요`,`평균 ${best.avg.toFixed(1)}등 vs ${worst.s} ${worst.avg.toFixed(1)}등. ${best.s} 계열을 주력으로 가져가세요.`]);
+  }
+  const enough=A.deckStats.filter(d=>d.n>=3);
+  if(enough.length){
+    const bd=enough[0];
+    if(bd.avg<=4.2) t.push([`주력덱 후보: ${bd.d}`,`평균 ${bd.avg.toFixed(1)}등 (${bd.n}판). 이 덱 라인을 더 다듬으면 안정적으로 탑4가 나와요.`]);
+    const wd=enough[enough.length-1];
+    if(wd.avg>=5 && wd.d!==bd.d) t.push([`저조한 덱: ${wd.d}`,`평균 ${wd.avg.toFixed(1)}등. 운영을 재점검하거나 당분간 지양하세요.`]);
+  }
+  if(A.n>=8 && A.maxShare>0.55) t.push([`한 덱 의존도 높음 (${pct(A.maxShare)})`,'오프너/아이템에 따라 유연하게 피벗하는 연습을 하면 평균 등수가 올라가요.']);
+  if(!t.length) t.push(['좋은 흐름이에요 👍','성향이 안정적입니다. 새 덱 1~2개를 실험하며 폭을 넓혀보세요.']);
+  return t;
+}
+
+function renderAnalysis(){
+  const A = analyze();
+  if(!A){
+    $('#analysisResult').innerHTML = `<div class="empty">아직 기록이 없어요.<br>게임이 끝나면 위에서 덱·등수를 기록해 주세요.</div>`;
+    return;
+  }
+  const avgColor = A.avg<=4 ? 'var(--green)' : A.avg<=4.6 ? 'var(--gold)' : 'var(--red)';
+  const tips = coachTips(A);
+  const recent = games.slice(-8).reverse();
+  $('#analysisResult').innerHTML =
+    `<div class="stat-row">
+       <div class="stat"><div class="v">${A.n}</div><div class="k">게임</div></div>
+       <div class="stat"><div class="v" style="color:${avgColor}">${A.avg.toFixed(1)}</div><div class="k">평균 등수</div></div>
+       <div class="stat"><div class="v">${pct(A.top4)}</div><div class="k">탑4율</div></div>
+       <div class="stat"><div class="v">${pct(A.first)}</div><div class="k">1등률</div></div>
+     </div>`+
+    `<table class="dtable"><tr><th>덱</th><th class="num">판</th><th class="num">평균</th></tr>`+
+      A.deckStats.map(d=>`<tr><td>${esc(d.d)}</td><td class="num">${d.n}</td><td class="num">${d.avg.toFixed(1)}</td></tr>`).join('')+
+    `</table>`+
+    `<div class="seg">스타일: ${A.styleStats.map(s=>`${esc(s.s)} ${s.n}판·${s.avg.toFixed(1)}등`).join('  ·  ')}</div>`+
+    `<div class="label" style="margin:14px 0 6px;">✅ 맞춤 코칭</div>`+
+    tips.map(([tt,td])=>`<div class="tip"><div class="tt">${esc(tt)}</div><div class="td2">${esc(td)}</div></div>`).join('')+
+    `<div class="label" style="margin:12px 0 6px;">최근 기록</div>`+
+    `<div class="chips">`+recent.map(x=>`<span class="chip">${esc(x.deck)} · ${x.place}등</span>`).join('')+`</div>`;
+}
+
+$('#prefPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  prefSel = (prefSel===el.dataset.pref ? null : el.dataset.pref); renderAnalysisInputs(); renderPref(); };
+$('#placePicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  curPlace = (curPlace===+el.dataset.p ? null : +el.dataset.p); renderAnalysisInputs(); };
+$('#logDeck').onchange = ()=>renderAnalysisInputs();
+$('#logBtn').onclick = ()=>{ const deck=$('#logDeck').value; if(!deck||!curPlace) return;
+  games.push({deck, place:curPlace}); saveGames();
+  curPlace=null; $('#logDeck').value=''; renderAnalysisInputs(); renderAnalysis(); };
+$('#analysisReset').onclick = ()=>{ if(confirm('기록을 모두 삭제할까요?')){ games=[]; saveGames(); renderAnalysis(); } };
+
 renderDecks(); renderItems(); renderAugs(); renderPickers(); renderReco();
+renderAnalysisInputs(); renderPref(); renderAnalysis();
 </script>
 </body>
 </html>
