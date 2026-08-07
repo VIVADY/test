@@ -266,6 +266,13 @@
   .card.tA{border-left:3px solid var(--purple);}
   .card.tB{border-left:3px solid var(--blue);}
   .card.tC{border-left:3px solid var(--silver);}
+  /* 레벨별 챔프 사다리 */
+  .ladder-row{display:flex; align-items:flex-start; gap:8px; padding:5px 0; border-top:1px solid var(--line);}
+  .ladder-row:first-child{border-top:none;}
+  .ladder-lv{flex:none; width:36px; font-size:12px; font-weight:800; color:var(--gold); padding-top:4px;}
+  .ladder-units{display:flex; flex-wrap:wrap; gap:4px;}
+  .ladder-units .unit{font-size:11px; padding:2px 7px 2px 2px;}
+  .ladder-units .unit .cnum{width:15px; height:15px; font-size:9px;}
 </style>
 </head>
 <body>
@@ -761,6 +768,11 @@ function guideHtml(name){
   const g=DECK_GUIDE[name]; if(!g) return '';
   let h=`<div class="label" style="margin-top:8px">스테이지별 운영</div>`;
   h+=g.steps.map(s=>`<div class="gstep"><span class="gstage">${esc(s.s)}</span><span class="gtext">${esc(s.t)}</span></div>`).join('');
+  const dObj=DECKS.find(x=>x.name===name);
+  if(dObj){
+    h+=`<div class="label" style="margin-top:10px">📶 레벨별 갖출 챔프 <span class="sub-hint">— 우선순위(완성형 기준)</span></div>`;
+    h+=levelLadder(DECK_FINAL[name], (dObj.carries||[]).map(c=>c.unit), dObj.level);
+  }
   h+=`<div class="label" style="margin-top:10px">레벨별 배치도 <span class="sub-hint">— 위 전열 / 아래 후열</span></div>`;
   (g.boards||[]).forEach(b=>{
     h+=`<div class="blvl"><span class="blvl-tag">${esc(b.lv)}</span></div>`;
@@ -788,7 +800,8 @@ function renderEasy(){
       <div class="easy-line">🎯 <b>캐리</b> ${esc(car.unit.split('(')[0].trim())}${carItems.length?` → <span class="easy-items">${carItems.map(esc).join(' + ')}</span>`:''}</div>
       <div class="easy-line">🧩 <b>모을 챔프</b> <span class="sub-hint">★=캐리 · 숫자=코스트</span></div>
       <div class="units">${unitTiles(fin, carryStr)}</div>
-      <div class="easy-line">🕹️ <b>운영</b> Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+      <details class="reco-fold" style="margin-top:8px"><summary>📶 레벨별 갖출 챔프 (5~9렙)</summary>${levelLadder(fin, (d.carries||[]).map(c=>c.unit), d.level)}</details>
+      <div class="easy-line" style="margin-top:8px">🕹️ <b>운영</b> Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
     </div>`;
   }).join('');
 }
@@ -800,6 +813,28 @@ function unitTiles(names, carryStr){
     const carry=!!(carryStr && carryStr.includes(n));
     return `<span class="unit c${cost} ${carry?'carry':''}"><span class="cnum">${cost||'?'}</span><span class="nm">${carry?'★':''}${esc(n)}</span></span>`;
   }).join('');
+}
+// 레벨별 우선순위: 완성형 로스터를 코스트 오름차순(같은 코스트는 캐리 먼저)으로 정렬
+function levelOrder(fin, carries){
+  const isCarry=n=>carries.some(u=>u.includes(n));
+  return [...(fin||[])].sort((a,b)=>{
+    const ca=(champByName[a]?.cost)||9, cb=(champByName[b]?.cost)||9;
+    if(ca!==cb) return ca-cb;
+    return (isCarry(b)?1:0)-(isCarry(a)?1:0);
+  });
+}
+function levelLadder(fin, carriesArr, levelStr){
+  const carries=(carriesArr||[]);
+  const order=levelOrder(fin, carries);
+  if(!order.length) return '';
+  const cap=Math.min(9, Math.max(5, ...((String(levelStr).match(/\d+/g)||['8']).map(Number))));
+  const cStr=carries.join(' ');
+  let rows='';
+  for(let L=5; L<=cap; L++){
+    const units=order.slice(0, Math.min(L, order.length));
+    rows+=`<div class="ladder-row"><span class="ladder-lv">${L}렙</span><span class="ladder-units">${unitTiles(units, cStr)}</span></div>`;
+  }
+  return rows;
 }
 
 function renderPocket(){
