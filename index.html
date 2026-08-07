@@ -1,0 +1,311 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1" />
+<title>TFT 도우미 — 추천덱 · 아이템 · 증강</title>
+
+<!-- iOS 홈 화면 앱처럼 동작하게 하는 설정 -->
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<meta name="apple-mobile-web-app-title" content="TFT 도우미" />
+<meta name="theme-color" content="#0b0e13" />
+<!-- 홈 화면 아이콘 (이모지 기반 SVG) -->
+<link rel="apple-touch-icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='180' height='180'%3E%3Crect width='180' height='180' rx='40' fill='%23111827'/%3E%3Ctext x='50%25' y='54%25' font-size='96' text-anchor='middle' dominant-baseline='central'%3E%E2%99%9F%EF%B8%8F%3C/text%3E%3C/svg%3E" />
+
+<style>
+  /* =========================================================
+     ★ 여기 색/폰트만 바꾸면 앱 전체 테마가 바뀝니다
+     ========================================================= */
+  :root{
+    --bg:#0b0e13; --bg2:#131823; --bg3:#1b2231;
+    --fg:#f2f4f8; --fg2:#aab2c2; --fg3:#6b7484;
+    --line:rgba(255,255,255,.08); --line2:rgba(255,255,255,.14);
+    --gold:#f0b429; --blue:#3b82f6; --purple:#a855f7; --green:#22c55e; --red:#ef4444; --silver:#94a3b8;
+    --radius:16px;
+    --font: -apple-system, "Pretendard", system-ui, "Apple SD Gothic Neo", sans-serif;
+  }
+  *{box-sizing:border-box; -webkit-tap-highlight-color:transparent;}
+  html,body{margin:0; background:var(--bg); color:var(--fg); font-family:var(--font);}
+  body{
+    padding: env(safe-area-inset-top) env(safe-area-inset-right) 0 env(safe-area-inset-left);
+    -webkit-font-smoothing:antialiased; overscroll-behavior-y:none;
+  }
+  a{color:inherit;}
+
+  /* 상단 헤더 */
+  header{
+    position:sticky; top:0; z-index:20;
+    background:linear-gradient(180deg, rgba(11,14,19,.98), rgba(11,14,19,.86));
+    backdrop-filter:blur(12px); border-bottom:1px solid var(--line);
+    padding:14px 16px 10px;
+  }
+  .title{display:flex; align-items:center; gap:8px; font-weight:800; font-size:19px; letter-spacing:-.02em;}
+  .title .dot{color:var(--gold);}
+  .patch{margin-top:2px; font-size:12px; color:var(--fg3);}
+
+  /* 탭 바 */
+  .tabs{display:flex; gap:6px; margin-top:12px;}
+  .tab{
+    flex:1; text-align:center; padding:9px 4px; border-radius:12px;
+    font-size:14px; font-weight:700; color:var(--fg2);
+    background:var(--bg2); border:1px solid var(--line); cursor:pointer;
+    transition:.15s;
+  }
+  .tab.active{background:var(--gold); color:#1a1204; border-color:transparent;}
+
+  main{padding:14px 16px 40px; max-width:720px; margin:0 auto;}
+  .view{display:none;} .view.active{display:block;}
+
+  /* 검색 */
+  .search{
+    width:100%; padding:11px 14px; margin-bottom:14px;
+    background:var(--bg2); border:1px solid var(--line); border-radius:12px;
+    color:var(--fg); font-size:15px;
+  }
+  .search::placeholder{color:var(--fg3);}
+
+  /* 카드 공통 */
+  .card{
+    background:var(--bg2); border:1px solid var(--line); border-radius:var(--radius);
+    padding:14px; margin-bottom:12px;
+  }
+  .card-head{display:flex; align-items:center; justify-content:space-between; gap:10px;}
+  .deck-name{font-size:17px; font-weight:800; letter-spacing:-.02em;}
+  .row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+
+  /* 티어 배지 */
+  .tier{font-weight:900; font-size:12px; padding:3px 9px; border-radius:8px; letter-spacing:.02em;}
+  .tier.S{background:rgba(240,180,41,.16); color:var(--gold);}
+  .tier.A{background:rgba(168,85,247,.16); color:var(--purple);}
+  .tier.B{background:rgba(59,130,246,.16); color:var(--blue);}
+  .tier.C{background:rgba(148,163,184,.16); color:var(--silver);}
+
+  .meta{font-size:13px; color:var(--fg3); margin-top:6px;}
+  .label{font-size:11px; color:var(--fg3); text-transform:uppercase; letter-spacing:.08em; margin:12px 0 6px; font-weight:700;}
+
+  /* 캐리 유닛 + 아이템 */
+  .carry{background:var(--bg3); border-radius:12px; padding:10px 12px; margin-top:8px;}
+  .carry-name{font-weight:700; font-size:14px;}
+  .items{display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;}
+  .item{font-size:12px; padding:4px 8px; border-radius:7px; background:rgba(240,180,41,.12); color:var(--gold); font-weight:600;}
+
+  /* 조합 유닛 칩 */
+  .chips{display:flex; gap:6px; flex-wrap:wrap;}
+  .chip{font-size:12.5px; padding:5px 9px; border-radius:8px; background:var(--bg3); color:var(--fg2); border:1px solid var(--line);}
+  .chip.star{color:var(--gold); border-color:rgba(240,180,41,.3);}
+
+  /* 아이템 조합표 */
+  .combo-grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(150px,1fr)); gap:8px;}
+  .combo{background:var(--bg2); border:1px solid var(--line); border-radius:12px; padding:11px 12px;}
+  .combo .recipe{font-size:12px; color:var(--fg3);}
+  .combo .result{font-size:14px; font-weight:700; margin-top:3px;}
+  .comp-legend{display:flex; gap:6px; flex-wrap:wrap; margin-bottom:14px;}
+  .comp{font-size:12px; padding:5px 9px; border-radius:8px; background:var(--bg3); border:1px solid var(--line);}
+
+  /* 증강/특성 */
+  .aug{border-left:3px solid var(--line2); padding:10px 12px; background:var(--bg2); border-radius:10px; margin-bottom:9px;}
+  .aug.prismatic{border-left-color:var(--purple);}
+  .aug.gold{border-left-color:var(--gold);}
+  .aug.silver{border-left-color:var(--silver);}
+  .aug-name{font-weight:700; font-size:14.5px;}
+  .aug-tag{font-size:10.5px; font-weight:800; padding:2px 7px; border-radius:6px; margin-left:6px; vertical-align:middle;}
+  .aug-tag.prismatic{background:rgba(168,85,247,.16); color:var(--purple);}
+  .aug-tag.gold{background:rgba(240,180,41,.16); color:var(--gold);}
+  .aug-tag.silver{background:rgba(148,163,184,.16); color:var(--silver);}
+  .aug-desc{font-size:13px; color:var(--fg2); margin-top:4px; line-height:1.5;}
+
+  .note{font-size:12px; color:var(--fg3); text-align:center; margin-top:22px; line-height:1.6;}
+  .empty{color:var(--fg3); text-align:center; padding:30px 0;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="title"><span class="dot">♟️</span> TFT 도우미</div>
+  <div class="patch" id="patchInfo">예시 데이터 · 최신 패치에 맞게 수정하세요</div>
+  <div class="tabs">
+    <div class="tab active" data-view="decks">추천 덱</div>
+    <div class="tab" data-view="items">아이템 조합</div>
+    <div class="tab" data-view="augs">증강 · 특성</div>
+  </div>
+</header>
+
+<main>
+  <!-- ============ 추천 덱 ============ -->
+  <section class="view active" id="view-decks">
+    <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 제이스, 리롤)" />
+    <div id="deckList"></div>
+  </section>
+
+  <!-- ============ 아이템 조합 ============ -->
+  <section class="view" id="view-items">
+    <div class="label">기본 아이템 (조합 재료)</div>
+    <div class="comp-legend" id="compLegend"></div>
+    <input class="search" id="itemSearch" placeholder="완성 아이템 검색 (예: 무한의 대검)" />
+    <div class="combo-grid" id="comboGrid"></div>
+  </section>
+
+  <!-- ============ 증강 · 특성 ============ -->
+  <section class="view" id="view-augs">
+    <input class="search" id="augSearch" placeholder="증강·특성 검색" />
+    <div class="label">추천 증강</div>
+    <div id="augList"></div>
+    <div class="label" style="margin-top:18px;">특성 활성화 구간</div>
+    <div id="traitList"></div>
+  </section>
+
+  <div class="note">
+    📌 이 앱은 <b>예시 데이터</b>로 채워져 있어요.<br>
+    파일 맨 아래 <b>DATA</b> 부분의 값만 바꾸면 최신 메타로 업데이트됩니다.
+  </div>
+</main>
+
+<script>
+/* =============================================================
+   ★★★ DATA — 여기만 수정하면 앱 내용이 바뀝니다 ★★★
+   (코딩 몰라도 됩니다. "따옴표 안의 글자"만 바꾸세요)
+   ============================================================= */
+
+const PATCH = "예시 데이터 · 최신 패치에 맞게 수정하세요";
+
+/* --- 1) 추천 덱 ---
+   tier: S / A / B / C  (강한 순서)
+   level: 주력 레벨,  playstyle: 운영 방식
+   carries: 핵심 캐리 + 아이템,  comp: 나머지 조합,  augments: 추천 증강 */
+const DECKS = [
+  {
+    name: "예시 덱 — 리롤 캐리",
+    tier: "S", level: "7 리롤", playstyle: "3성 저격 · 저코스트 리롤",
+    carries: [
+      { unit: "핵심캐리 A", items: ["구인수의 격노검", "거인의 결정력", "최후의 속삭임"] },
+    ],
+    comp: ["탱커 B", "서브딜 C", "유틸 D", "특성용 E", "특성용 F", "특성용 G"],
+    augments: ["증강 예시 1", "증강 예시 2"],
+    notes: "2-1에 리롤 시작, 6-7렙 유지하며 캐리 3성 맞추기.",
+  },
+  {
+    name: "예시 덱 — 레벨링 표준",
+    tier: "A", level: "8~9 레벨링", playstyle: "안정적 8렙 후 고코스트",
+    carries: [
+      { unit: "핵심캐리 X", items: ["무한의 대검", "라바돈의 죽음모자", "보석 건틀릿"] },
+    ],
+    comp: ["프론트 Y", "앵커 Z", "특성 P", "특성 Q", "특성 R"],
+    augments: ["증강 예시 3"],
+    notes: "체력 관리하며 4-1, 5-1 레벨업. 8렙에서 핵심 유닛 확보.",
+  },
+];
+
+/* --- 2) 아이템 조합 ---
+   components: 기본 아이템 9종 (이름만 예시 — 최신판으로 교체)
+   combos: {재료1 + 재료2 → 완성 아이템} */
+const COMPONENTS = ["B.F.대검","곡궁","쓸데없이 큰 지팡이","음전자 망토","연습용 로브","여신의 눈물","거인의 허리띠","쇠사슬 조끼","뒤집개"];
+const COMBOS = [
+  { recipe:"B.F.대검 + B.F.대검", result:"무한의 대검" },
+  { recipe:"B.F.대검 + 뒤집개", result:"최후의 속삭임" },
+  { recipe:"곡궁 + 곡궁", result:"고속연사기" },
+  { recipe:"곡궁 + 여신의 눈물", result:"구인수의 격노검" },
+  { recipe:"쓸데없이 큰 지팡이 + 쓸데없이 큰 지팡이", result:"라바돈의 죽음모자" },
+  { recipe:"여신의 눈물 + 여신의 눈물", result:"대천사의 지팡이" },
+  { recipe:"거인의 허리띠 + 거인의 허리띠", result:"워모그의 갑옷" },
+  { recipe:"쇠사슬 조끼 + 쇠사슬 조끼", result:"가시 갑옷" },
+  { recipe:"음전자 망토 + 음전자 망토", result:"덤불 조끼" },
+];
+
+/* --- 3) 추천 증강 ---
+   type: prismatic(3티어) / gold(2티어) / silver(1티어) */
+const AUGMENTS = [
+  { name:"증강 예시 1", type:"prismatic", desc:"강력한 프리즘 증강 설명을 여기에." },
+  { name:"증강 예시 2", type:"gold", desc:"골드 증강 설명." },
+  { name:"증강 예시 3", type:"silver", desc:"실버 증강 설명." },
+];
+
+/* --- 4) 특성 활성화 구간 --- */
+const TRAITS = [
+  { name:"특성 예시 A", breaks:"2 / 4 / 6", desc:"구간별 효과 요약." },
+  { name:"특성 예시 B", breaks:"3 / 5 / 7 / 9", desc:"구간별 효과 요약." },
+];
+
+/* =============================================================
+   ↓↓↓ 아래는 화면을 그리는 코드입니다. 건드릴 필요 없어요. ↓↓↓
+   ============================================================= */
+const $ = s => document.querySelector(s);
+const esc = s => String(s).replace(/[&<>]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;'}[c]));
+document.getElementById('patchInfo').textContent = PATCH;
+
+// 탭 전환
+document.querySelectorAll('.tab').forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll('.tab').forEach(x=>x.classList.remove('active'));
+    document.querySelectorAll('.view').forEach(x=>x.classList.remove('active'));
+    t.classList.add('active');
+    $('#view-'+t.dataset.view).classList.add('active');
+    window.scrollTo(0,0);
+  };
+});
+
+// 덱 렌더
+function renderDecks(q=""){
+  q=q.trim().toLowerCase();
+  const list = DECKS.filter(d=>{
+    if(!q) return true;
+    const hay=(d.name+d.playstyle+d.carries.map(c=>c.unit+c.items.join()).join()+d.comp.join()).toLowerCase();
+    return hay.includes(q);
+  });
+  $('#deckList').innerHTML = list.length ? list.map(d=>`
+    <div class="card">
+      <div class="card-head">
+        <div class="deck-name">${esc(d.name)}</div>
+        <span class="tier ${d.tier}">${d.tier}</span>
+      </div>
+      <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+      <div class="label">핵심 캐리</div>
+      ${d.carries.map(c=>`
+        <div class="carry">
+          <div class="carry-name">${esc(c.unit)}</div>
+          <div class="items">${c.items.map(i=>`<span class="item">${esc(i)}</span>`).join('')}</div>
+        </div>`).join('')}
+      <div class="label">조합</div>
+      <div class="chips">${d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('')}</div>
+      ${d.augments?.length?`<div class="label">추천 증강</div><div class="chips">${d.augments.map(a=>`<span class="chip star">${esc(a)}</span>`).join('')}</div>`:''}
+      ${d.notes?`<div class="meta" style="margin-top:10px">💡 ${esc(d.notes)}</div>`:''}
+    </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
+}
+
+// 아이템 렌더
+function renderItems(q=""){
+  q=q.trim().toLowerCase();
+  $('#compLegend').innerHTML = COMPONENTS.map(c=>`<span class="comp">${esc(c)}</span>`).join('');
+  const list = COMBOS.filter(c=> !q || (c.result+c.recipe).toLowerCase().includes(q));
+  $('#comboGrid').innerHTML = list.length ? list.map(c=>`
+    <div class="combo">
+      <div class="result">${esc(c.result)}</div>
+      <div class="recipe">${esc(c.recipe)}</div>
+    </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
+}
+
+// 증강/특성 렌더
+function renderAugs(q=""){
+  q=q.trim().toLowerCase();
+  const aList=AUGMENTS.filter(a=> !q || (a.name+a.desc).toLowerCase().includes(q));
+  $('#augList').innerHTML = aList.length ? aList.map(a=>`
+    <div class="aug ${a.type}">
+      <span class="aug-name">${esc(a.name)}</span><span class="aug-tag ${a.type}">${a.type==='prismatic'?'프리즘':a.type==='gold'?'골드':'실버'}</span>
+      <div class="aug-desc">${esc(a.desc)}</div>
+    </div>`).join('') : `<div class="empty">검색 결과가 없어요</div>`;
+  const tList=TRAITS.filter(t=> !q || (t.name+t.desc).toLowerCase().includes(q));
+  $('#traitList').innerHTML = tList.map(t=>`
+    <div class="aug">
+      <span class="aug-name">${esc(t.name)}</span> <span class="chip" style="font-size:11px">${esc(t.breaks)}</span>
+      <div class="aug-desc">${esc(t.desc)}</div>
+    </div>`).join('');
+}
+
+$('#deckSearch').oninput = e=>renderDecks(e.target.value);
+$('#itemSearch').oninput = e=>renderItems(e.target.value);
+$('#augSearch').oninput  = e=>renderAugs(e.target.value);
+
+renderDecks(); renderItems(); renderAugs();
+</script>
+</body>
+</html>
