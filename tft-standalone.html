@@ -71,8 +71,6 @@
     #recoUnitIn{grid-area:uin;} #unitResult{grid-area:uout;}
     #recoOtherIn{grid-area:oin;} #recoOut{grid-area:rout;}
     .reco-grid .divider{display:none;}
-    /* 분석: 입력 | 결과 2단 */
-    #view-analysis .ana-grid{display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start;}
   }
   .why{font-size:12px; color:var(--gold); margin-top:3px; line-height:1.4;}
   .cut-chip{border-color:rgba(239,68,68,.45)!important; color:#f3a2a2!important;}
@@ -235,6 +233,11 @@
   .hex.mid{background:var(--bg3); color:var(--fg2);}
   .hex.tank{background:rgba(59,130,246,.16); border-color:rgba(59,130,246,.35); color:#9dc0f5;}
   .board-legend{font-size:10.5px; color:var(--fg3); margin-top:3px;}
+  .reco-fold{margin-top:8px; border-top:1px solid var(--line); padding-top:8px;}
+  .reco-fold>summary{font-size:13px; font-weight:700; color:var(--fg2); cursor:pointer; list-style:none;}
+  .reco-fold>summary::-webkit-details-marker{display:none;}
+  .blvl{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 2px;}
+  .blvl-tag{font-size:11px; font-weight:800; color:var(--gold); background:rgba(240,180,41,.12); border-radius:7px; padding:2px 8px;}
 </style>
 </head>
 <body>
@@ -246,7 +249,6 @@
     <div class="tab active" data-view="decks">추천덱</div>
     <div class="tab" data-view="reco">덱추천</div>
     <div class="tab" data-view="dogam">도감</div>
-    <div class="tab" data-view="analysis">분석</div>
   </div>
 </header>
 
@@ -269,9 +271,9 @@
 
       <div id="unitResult"></div>
 
-      <div id="recoOtherIn">
-        <hr class="divider">
-        <div class="label">가진 기본 아이템 <span class="sub-hint">— − / + 로 개수 조절 (3개 이상 OK)</span></div>
+      <details id="recoOtherIn" class="reco-fold">
+        <summary>➕ 정밀 입력 <span class="sub-hint">— 아이템·레벨·골드·증강 (선택)</span></summary>
+        <div class="label" style="margin-top:10px;">가진 기본 아이템 <span class="sub-hint">— − / + 로 개수 조절 (3개 이상 OK)</span></div>
         <div id="compSteppers"></div>
 
         <div class="label" style="margin-top:12px;">현재 레벨 (선택)</div>
@@ -285,7 +287,7 @@
         <input class="search" id="augSearch2" placeholder="증강 검색 (예: 침략자 제드)" style="margin-bottom:6px;">
         <div class="picker" id="augOptions"></div>
         <div class="picker" id="augSelected"></div>
-      </div>
+      </details>
 
       <div id="recoOut">
         <div class="row" style="margin:0 0 4px; justify-content:space-between;">
@@ -317,27 +319,6 @@
     <div id="dogamResult"></div>
   </section>
 
-  <!-- ============ 내 분석 & 코칭 ============ -->
-  <section class="view" id="view-analysis">
-    <div class="col-title">📈 내 분석 & 코칭</div>
-    <p class="reco-help">내 <b>선호 운영</b>을 고르고, 게임이 끝날 때마다 <b>덱·등수</b>를 기록하면 성향·강점·약점을 분석해 <b>맞춤 코칭</b>을 줘요. (기록은 이 기기에 저장돼요)</p>
-
-    <div class="label">내 선호 운영 — 맞는 덱 추천</div>
-    <div class="picker" id="prefPicker"></div>
-    <div id="prefResult"></div>
-
-    <div class="label" style="margin-top:16px;">게임 기록 추가</div>
-    <select id="logDeck" class="search" style="margin-bottom:6px;"></select>
-    <div class="label" style="margin:2px 0 5px;">최종 등수</div>
-    <div class="picker" id="placePicker"></div>
-    <button id="logBtn" class="logbtn" disabled>＋ 이 판 기록하기</button>
-
-    <div class="row" style="margin:16px 0 6px; justify-content:space-between;">
-      <div class="label" style="margin:0;">내 통계 &amp; 코칭</div>
-      <span id="analysisReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 기록 삭제</span>
-    </div>
-    <div id="analysisResult"></div>
-  </section>
 
   <div class="note">
     📌 <b>Set 17: Space Gods · 패치 17.8</b> 기준 (2026-08-07)<br>
@@ -455,9 +436,10 @@ const DECKS = [
   },
 ];
 
-/* --- 1-b) 덱별 레벨 가이드 · 배치도 ---
-   steps: [{s:"스테이지", t:"할 일"}],  board: {corner:'left'|'right', back:[후열], mid:[중열], front:[전열], note}
-   (배치는 표준 포지션 가이드 — 캐리 백라인 코너, 탱커 전열) */
+/* --- 1-b) 덱별 레벨 가이드 · 레벨별 배치도 ---
+   steps: [{s:"스테이지", t:"할 일"}]
+   boards: [{lv:"레벨", corner:'left'|'right', front:[전열/탱커], mid:[중열], back:[후열/캐리], note}]
+   (배치도는 위=전열(적 방향), 아래=후열(캐리). 표준 포지션 가이드) */
 const DECK_GUIDE = {
   "N.O.V.A. 벡스 파스트 9": {
     steps:[
@@ -466,8 +448,12 @@ const DECK_GUIDE = {
       {s:"4-1", t:"8렙 도달, 모르가나 등 4코 탱커로 보드 안정."},
       {s:"5-1~6-1", t:"9렙 찍고 롤다운 → 벡스·5코 2성. 벡스에 구인수 필수."},
     ],
-    board:{corner:'right', back:["벡스","그레이브즈"], mid:["트위스티드 페이트"], front:["모르가나","누누"],
-      note:"벡스 백라인 코너, 탱커 전열. 암살자 상대엔 반대 코너로 스왑."}
+    boards:[
+      {lv:"6~7렙", corner:'right', front:["모르가나"], mid:["트위스티드 페이트"], back:["벡스"],
+        note:"벡스 임시 캐리, 탱커로 앞라인."},
+      {lv:"9렙 완성", corner:'right', front:["모르가나","누누"], mid:["트위스티드 페이트"], back:["벡스","그레이브즈"],
+        note:"벡스 후열 코너, 5코로 보강. 암살자엔 반대 코너로 스왑."},
+    ],
   },
   "메카 (아우렐리온 솔)": {
     steps:[
@@ -476,8 +462,12 @@ const DECK_GUIDE = {
       {s:"4-1", t:"8렙 → 메카 3유닛(우르곳·ASol·마이티 메크)+탐 켄치 복사로 6메카."},
       {s:"4-2~5-1", t:"롤다운 → ASol·메크 2성. ASol 공속템 금지."},
     ],
-    board:{corner:'left', back:["아우렐리온 솔"], mid:["우르곳","탐 켄치"], front:["마이티 메크"],
-      note:"마이티 메크 전열 중앙(어그로), ASol 뒤에서 변신 램핑."}
+    boards:[
+      {lv:"6렙", corner:'left', front:["마이티 메크"], mid:["우르곳"], back:["아우렐리온 솔"],
+        note:"메크 앞 어그로, ASol 뒤."},
+      {lv:"8렙 완성", corner:'left', front:["마이티 메크"], mid:["우르곳","탐 켄치"], back:["아우렐리온 솔"],
+        note:"6메카 완성. ASol 후열에서 변신 램핑."},
+    ],
   },
   "암흑의 별 진 (스페이스 오페라)": {
     steps:[
@@ -486,8 +476,12 @@ const DECK_GUIDE = {
       {s:"4-1", t:"8렙, 카르마·자야 2성 + 딜템 분배."},
       {s:"5-1~", t:"진(5코) 확보하면 딜템 이전, 2차 캐리로 마무리."},
     ],
-    board:{corner:'right', back:["진","자야","카르마"], mid:["리븐"], front:["일라오이","누누"],
-      note:"진은 적에게서 가장 먼 코너(저격수 거리 증폭). 자야·카르마 백라인, 탱커 전열."}
+    boards:[
+      {lv:"6~7렙", corner:'right', front:["일라오이"], mid:["리븐"], back:["자야","카르마"],
+        note:"카르마·자야 임시 캐리, 후열."},
+      {lv:"8렙 완성", corner:'right', front:["일라오이","누누"], mid:["리븐"], back:["진","자야","카르마"],
+        note:"진은 적에게서 가장 먼 후열 코너(저격수 거리 증폭)."},
+    ],
   },
   "리산드라 리롤": {
     steps:[
@@ -496,8 +490,12 @@ const DECK_GUIDE = {
       {s:"3-2~3-5", t:"슬로우롤(50골 위) → 리산드라·초가스 3성."},
       {s:"3성 후", t:"6렙, 대부분 8렙에서 마무리."},
     ],
-    board:{corner:'left', back:["리산드라"], mid:["바루스"], front:["초가스"],
-      note:"초가스 전열 탱, 리산드라 백라인 코너. 바루스 서포터로 안정성↑."}
+    boards:[
+      {lv:"4~6렙 리롤", corner:'left', front:["초가스"], mid:["바루스"], back:["리산드라"],
+        note:"3성 목표 슬로우롤. 초가스 앞, 리산드라 후열."},
+      {lv:"8렙 완성", corner:'left', front:["초가스","탱커"], mid:["바루스","서포트"], back:["리산드라"],
+        note:"3성 확보 후 보강. 리산드라 후열 코너."},
+    ],
   },
   "사미라 리롤": {
     steps:[
@@ -506,8 +504,12 @@ const DECK_GUIDE = {
       {s:"4-1", t:"7렙 30골 위로 롤 → 사미라 3성."},
       {s:"후반", t:"오른 앞 어그로, 사미라 안전한 백라인 램핑."},
     ],
-    board:{corner:'right', back:["사미라"], mid:["누누와 윌럼프"], front:["오른"],
-      note:"오른 앞 중앙 어그로, 사미라 반대편 백라인. 최후의 속삭임은 후반 이전 가능."}
+    boards:[
+      {lv:"5~7렙 리롤", corner:'right', front:["오른"], mid:["누누와 윌럼프"], back:["사미라"],
+        note:"사미라 3성 롤. 오른 앞, 사미라 후열."},
+      {lv:"완성", corner:'right', front:["오른","프론트"], mid:["누누와 윌럼프"], back:["사미라"],
+        note:"오른 앞 어그로, 사미라 반대편 후열 램핑."},
+    ],
   },
   "별돌보미 자야": {
     steps:[
@@ -516,8 +518,12 @@ const DECK_GUIDE = {
       {s:"4-1", t:"롤다운 → 자야2 + 4코 탱커(탐 켄치/누누/라무스)."},
       {s:"후반", t:"자야 백라인 코너, 진 2차 캐리."},
     ],
-    board:{corner:'left', back:["자야","진"], mid:["리븐"], front:["누누","탐 켄치"],
-      note:"자야 백라인 코너(평타 안전), 진 옆에. 탱커 전열."}
+    boards:[
+      {lv:"6렙", corner:'left', front:["누누"], mid:["리븐"], back:["자야"],
+        note:"자야 BIS 세팅, 후열 코너."},
+      {lv:"8렙 완성", corner:'left', front:["누누","탐 켄치"], mid:["리븐"], back:["자야","진"],
+        note:"자야 후열 코너(평타 안전), 진 옆 2차 캐리."},
+    ],
   },
   "Capped & Loaded (AD 파스트9)": {
     steps:[
@@ -526,8 +532,12 @@ const DECK_GUIDE = {
       {s:"4-1~5-1", t:"체력 관리하며 8렙까지 레벨업."},
       {s:"6-1", t:"9렙 → 피오라/그레이브즈/벡스 2성, 5코 보강."},
     ],
-    board:{corner:'right', back:["벡스","그레이브즈"], mid:["케이틀린","탈론"], front:["피오라","누누"],
-      note:"주 캐리 백라인 코너. 피오라는 전열 브루저로 활용 가능."}
+    boards:[
+      {lv:"6렙", corner:'right', front:["피오라"], mid:["케이틀린","탈론"], back:["벡스","그레이브즈"],
+        note:"홀더에 아이템 임시 장착. 주 캐리 후열."},
+      {lv:"9렙 완성", corner:'right', front:["피오라","누누"], mid:["케이틀린","탈론"], back:["벡스","그레이브즈"],
+        note:"주 캐리 후열 코너. 피오라는 전열 브루저로도 활용."},
+    ],
   },
   "카르마 여행자 (미러 메이헴)": {
     steps:[
@@ -536,8 +546,12 @@ const DECK_GUIDE = {
       {s:"4-1", t:"8렙 → 6여행자(상징 1개), 카르마 2성."},
       {s:"후반", t:"카르마 백라인, 마이티 메크 전열."},
     ],
-    board:{corner:'left', back:["카르마","오로라"], mid:["르블랑","밉시","파이크"], front:["마이티 메크","모르가나"],
-      note:"카르마 백라인 코너, 마이티 메크 전열. 저코 여행자로 6특성 유지."}
+    boards:[
+      {lv:"6렙", corner:'left', front:["마이티 메크"], mid:["르블랑","밉시","파이크"], back:["카르마"],
+        note:"저코 여행자 유지. 카르마 후열."},
+      {lv:"8렙 완성", corner:'left', front:["마이티 메크","모르가나"], mid:["르블랑","밉시","파이크"], back:["카르마","오로라"],
+        note:"6여행자. 카르마 후열 코너, 메크 전열."},
+    ],
   },
 };
 
@@ -633,29 +647,33 @@ function makeBoard(b){
     list.forEach((name,i)=>{ const c=cols[i]; if(c>=0&&c<7) rows[r][c]={name, role, carry: role==='back'&&i===0}; });
   };
   const side=b.corner==='right'?'right':'left';
-  put(0, b.back, 'back', side);
+  // 위(적 방향)=전열 탱커, 아래=후열 캐리
+  put(0, b.front||[], 'tank', 'center');
   put(1, b.mid||[], 'mid', side);
-  put(3, b.front||[], 'tank', 'center');
+  put(3, b.back||[], 'back', side);
   return rows;
 }
 function boardHtml(b){
   const rows=makeBoard(b);
-  let h=`<div class="board-diagram">`;
+  let h=`<div class="board-legend">▲ 위 = 전열(탱커)·적 방향</div><div class="board-diagram">`;
   rows.forEach((row,ri)=>{
     h+=`<div class="brow ${ri%2?'odd':''}">`+row.map(cell=>
       cell ? `<div class="hex ${cell.carry?'carry':cell.role}">${cell.carry?'★':''}${esc(shortName(cell.name))}</div>`
            : `<div class="hex empty"></div>`).join('')+`</div>`;
   });
-  h+=`</div><div class="board-legend">위 = 후열(캐리·딜러) · 아래 = 전열(탱커) · 적은 아래쪽 ▼</div>`;
+  h+=`</div><div class="board-legend">▼ 아래 = 후열(캐리·딜러) · ★ = 메인 캐리</div>`;
   return h;
 }
 function guideHtml(name){
   const g=DECK_GUIDE[name]; if(!g) return '';
   let h=`<div class="label" style="margin-top:8px">스테이지별 운영</div>`;
   h+=g.steps.map(s=>`<div class="gstep"><span class="gstage">${esc(s.s)}</span><span class="gtext">${esc(s.t)}</span></div>`).join('');
-  h+=`<div class="label" style="margin-top:10px">배치도 <span class="sub-hint">— 표준 포지션</span></div>`;
-  h+=boardHtml(g.board);
-  if(g.board.note) h+=`<div class="meta" style="margin-top:6px">📍 ${esc(g.board.note)}</div>`;
+  h+=`<div class="label" style="margin-top:10px">레벨별 배치도 <span class="sub-hint">— 위 전열 / 아래 후열</span></div>`;
+  (g.boards||[]).forEach(b=>{
+    h+=`<div class="blvl"><span class="blvl-tag">${esc(b.lv)}</span></div>`;
+    h+=boardHtml(b);
+    if(b.note) h+=`<div class="meta" style="margin-top:4px">📍 ${esc(b.note)}</div>`;
+  });
   return h;
 }
 
@@ -871,17 +889,11 @@ function pathAdvice(d){
 function renderReco(){
   const nothing = heldTotal()===0 && offeredAug.size===0 && curLevel===null && curGold===null;
   if(nothing){
-    const list=[...DECKS].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]);
     $('#recoResult').innerHTML =
-      `<div class="reco-hint">👆 기본 아이템·레벨·골드·증강을 넣으면 <b>유리한 순서</b>로 정렬돼요. 아래는 티어 순.</div>`+
-      list.map(d=>`
-        <div class="reco-card">
-          <div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
-          <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
-        </div>`).join('');
+      `<div class="reco-hint">위 <b>🎯 목표 덱</b>이 내 유닛 기반 추천이에요. 여기선 <b>➕ 정밀 입력</b>(아이템·레벨·골드·증강)을 열면 <b>재료 기반 덱 추천</b>이 상위 3개로 나옵니다.</div>`;
     return;
   }
-  const ranked = DECKS.map(scoreDeck).sort((a,b)=>b.score-a.score);
+  const ranked = DECKS.map(scoreDeck).sort((a,b)=>b.score-a.score).slice(0,3);
   $('#recoResult').innerHTML = ranked.map((r,i)=>`
     <div class="reco-card ${i===0?'top':''}">
       <div class="card-head">
@@ -913,111 +925,6 @@ $('#augSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el
 $('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); offeredAug.clear(); curLevel=null; curGold=null;
   $('#goldRange').value=0; $('#augSearch2').value=''; renderPickers(); renderAugInput(); renderReco(); };
 
-/* ===== 내 분석 & 코칭 ===== */
-const LS_KEY = 'tft_games_v1';
-let games = [];
-try { games = JSON.parse(localStorage.getItem(LS_KEY) || '[]') || []; } catch(e){ games = []; }
-function saveGames(){ try { localStorage.setItem(LS_KEY, JSON.stringify(games)); } catch(e){} }
-const pct = x => Math.round(x*100)+'%';
-let curPlace = null;
-let prefSel = null;
-
-function renderAnalysisInputs(){
-  $('#prefPicker').innerHTML = [['reroll','리롤'],['fast','레벨링'],['flex','유연']]
-    .map(([k,l])=>`<span class="pick ${prefSel===k?'on':''}" data-pref="${k}">${l}</span>`).join('');
-  $('#logDeck').innerHTML = `<option value="">덱 선택…</option>`+
-    DECKS.map(d=>`<option value="${esc(d.name)}">${esc(d.name)}</option>`).join('')+
-    `<option value="기타">기타</option>`;
-  $('#placePicker').innerHTML = [1,2,3,4,5,6,7,8]
-    .map(p=>`<span class="pick ${curPlace===p?'on':''}" data-p="${p}">${p}등</span>`).join('');
-  $('#logBtn').disabled = !($('#logDeck').value && curPlace);
-}
-
-function renderPref(){
-  if(!prefSel){ $('#prefResult').innerHTML=''; return; }
-  let list;
-  if(prefSel==='reroll')    list = DECKS.filter(d=>isReroll(d));
-  else if(prefSel==='fast') list = DECKS.filter(d=>!isReroll(d));
-  else                      list = DECKS.filter(d=>d.tier==='S'||d.tier==='A');
-  list = [...list].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]).slice(0,4);
-  $('#prefResult').innerHTML = `<div class="reco-hint" style="margin:6px 0 8px">이 스타일에 맞는 덱:</div>`+
-    list.map(d=>`<div class="reco-card"><div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div><div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div></div>`).join('');
-}
-
-const styleOf = name => { const dk=DECKS.find(D=>D.name===name); return dk ? (isReroll(dk)?'리롤':'레벨링') : '기타'; };
-
-function analyze(){
-  const g=games, n=g.length; if(!n) return null;
-  const avg = g.reduce((s,x)=>s+x.place,0)/n;
-  const top4 = g.filter(x=>x.place<=4).length/n;
-  const first = g.filter(x=>x.place===1).length/n;
-  const byDeck={}; g.forEach(x=>{ (byDeck[x.deck]=byDeck[x.deck]||[]).push(x.place); });
-  const deckStats = Object.entries(byDeck).map(([d,ps])=>({d,n:ps.length,avg:ps.reduce((a,b)=>a+b,0)/ps.length})).sort((a,b)=>a.avg-b.avg);
-  const byStyle={}; g.forEach(x=>{ const s=styleOf(x.deck); (byStyle[s]=byStyle[s]||[]).push(x.place); });
-  const styleStats = Object.entries(byStyle).map(([s,ps])=>({s,n:ps.length,avg:ps.reduce((a,b)=>a+b,0)/ps.length}));
-  const maxShare = Math.max(...deckStats.map(d=>d.n))/n;
-  return {n,avg,top4,first,deckStats,styleStats,maxShare};
-}
-
-function coachTips(A){
-  const t=[];
-  if(A.n<5) t.push(['표본이 적어요','최소 5~10판을 기록하면 성향 분석이 정확해져요.']);
-  if(A.top4<0.4) t.push([`탑4율이 낮아요 (${pct(A.top4)})`,'기본기 점검: 체력 관리, 아이템 슬램(재료 방치 금지), 연승/연패 라인 관리.']);
-  else if(A.top4>=0.5 && A.first<0.12) t.push(['안정적인데 1등이 적어요','2~4등은 잘 잡아요. 후반 포지셔닝·아이템 퀄리티를 다듬고 하이롤 판에서 1등을 노려보세요.']);
-  if(A.styleStats.length>=2){
-    const s=[...A.styleStats].sort((a,b)=>a.avg-b.avg);
-    const best=s[0], worst=s[s.length-1];
-    if(best.n>=3 && worst.n>=3 && worst.avg-best.avg>=0.8)
-      t.push([`${best.s} 덱이 더 잘 맞아요`,`평균 ${best.avg.toFixed(1)}등 vs ${worst.s} ${worst.avg.toFixed(1)}등. ${best.s} 계열을 주력으로 가져가세요.`]);
-  }
-  const enough=A.deckStats.filter(d=>d.n>=3);
-  if(enough.length){
-    const bd=enough[0];
-    if(bd.avg<=4.2) t.push([`주력덱 후보: ${bd.d}`,`평균 ${bd.avg.toFixed(1)}등 (${bd.n}판). 이 덱 라인을 더 다듬으면 안정적으로 탑4가 나와요.`]);
-    const wd=enough[enough.length-1];
-    if(wd.avg>=5 && wd.d!==bd.d) t.push([`저조한 덱: ${wd.d}`,`평균 ${wd.avg.toFixed(1)}등. 운영을 재점검하거나 당분간 지양하세요.`]);
-  }
-  if(A.n>=8 && A.maxShare>0.55) t.push([`한 덱 의존도 높음 (${pct(A.maxShare)})`,'오프너/아이템에 따라 유연하게 피벗하는 연습을 하면 평균 등수가 올라가요.']);
-  if(!t.length) t.push(['좋은 흐름이에요 👍','성향이 안정적입니다. 새 덱 1~2개를 실험하며 폭을 넓혀보세요.']);
-  return t;
-}
-
-function renderAnalysis(){
-  const A = analyze();
-  if(!A){
-    $('#analysisResult').innerHTML = `<div class="empty">아직 기록이 없어요.<br>게임이 끝나면 위에서 덱·등수를 기록해 주세요.</div>`;
-    return;
-  }
-  const avgColor = A.avg<=4 ? 'var(--green)' : A.avg<=4.6 ? 'var(--gold)' : 'var(--red)';
-  const tips = coachTips(A);
-  const recent = games.slice(-8).reverse();
-  $('#analysisResult').innerHTML =
-    `<div class="stat-row">
-       <div class="stat"><div class="v">${A.n}</div><div class="k">게임</div></div>
-       <div class="stat"><div class="v" style="color:${avgColor}">${A.avg.toFixed(1)}</div><div class="k">평균 등수</div></div>
-       <div class="stat"><div class="v">${pct(A.top4)}</div><div class="k">탑4율</div></div>
-       <div class="stat"><div class="v">${pct(A.first)}</div><div class="k">1등률</div></div>
-     </div>`+
-    `<table class="dtable"><tr><th>덱</th><th class="num">판</th><th class="num">평균</th></tr>`+
-      A.deckStats.map(d=>`<tr><td>${esc(d.d)}</td><td class="num">${d.n}</td><td class="num">${d.avg.toFixed(1)}</td></tr>`).join('')+
-    `</table>`+
-    `<div class="seg">스타일: ${A.styleStats.map(s=>`${esc(s.s)} ${s.n}판·${s.avg.toFixed(1)}등`).join('  ·  ')}</div>`+
-    `<div class="label" style="margin:14px 0 6px;">✅ 맞춤 코칭</div>`+
-    tips.map(([tt,td])=>`<div class="tip"><div class="tt">${esc(tt)}</div><div class="td2">${esc(td)}</div></div>`).join('')+
-    `<div class="label" style="margin:12px 0 6px;">최근 기록</div>`+
-    `<div class="chips">`+recent.map(x=>`<span class="chip">${esc(x.deck)} · ${x.place}등</span>`).join('')+`</div>`;
-}
-
-$('#prefPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
-  prefSel = (prefSel===el.dataset.pref ? null : el.dataset.pref); renderAnalysisInputs(); renderPref(); };
-$('#placePicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
-  curPlace = (curPlace===+el.dataset.p ? null : +el.dataset.p); renderAnalysisInputs(); };
-$('#logDeck').onchange = ()=>renderAnalysisInputs();
-$('#logBtn').onclick = ()=>{ const deck=$('#logDeck').value; if(!deck||!curPlace) return;
-  games.push({deck, place:curPlace}); saveGames();
-  curPlace=null; $('#logDeck').value=''; renderAnalysisInputs(); renderAnalysis(); };
-$('#analysisReset').onclick = ()=>{ if(confirm('기록을 모두 삭제할까요?')){ games=[]; saveGames(); renderAnalysis(); } };
-
 /* ===== 실시간 유닛 기반 추천 (도감 데이터 활용) ===== */
 const CHAMPS = DB.champions || [];
 const TRAIT_BP = {}; (DB.traits||[]).forEach(t=>{ TRAIT_BP[t.n]=(t.br.match(/\d+/g)||[]).map(Number); });
@@ -1044,7 +951,7 @@ function nextUnitSuggestions(cnt){
       else { const top=[...help].sort((a,b)=>b.cc-a.cc).slice(0,2); reason = top.map(h=>`${h.t} ${h.cc+1}`).join(' · ')+' 보강'; }
     }
     return {c, s, reason, help:help.map(h=>h.t)};
-  }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s || a.c.cost-b.c.cost).slice(0,6);
+  }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s || a.c.cost-b.c.cost).slice(0,4);
 }
 // 빼도 되는 유닛: 현재 어떤 활성 특성에도 기여하지 않는(전부 미달) 유닛
 function cutSuggestions(cnt){
@@ -1068,7 +975,7 @@ function unitAugments(){
   const names=[...myUnits]; if(!names.length) return [];
   const ord={prismatic:0,gold:1,silver:2};
   return (DB.augments||[]).filter(a=> names.some(n=> a.n.includes(n) || (a.desc||'').includes(n)))
-    .sort((a,b)=>ord[a.tier]-ord[b.tier]).slice(0,8);
+    .sort((a,b)=>ord[a.tier]-ord[b.tier]).slice(0,4);
 }
 
 function renderUnitInputs(){
@@ -1156,7 +1063,6 @@ $('#unitSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!e
   myUnits.delete(el.dataset.rm); renderUnit(); };
 
 renderDecks(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
-renderAnalysisInputs(); renderPref(); renderAnalysis();
 </script>
 </body>
 </html>
