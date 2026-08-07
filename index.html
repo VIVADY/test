@@ -249,6 +249,23 @@
   .cheat .ch-t{font-weight:800; font-size:14px; margin-bottom:5px;}
   .cheat .ch-b{font-size:13px; color:var(--fg2); line-height:1.6;}
   .cheat .big{font-size:14.5px; color:var(--gold); font-weight:700; letter-spacing:-.01em;}
+  /* 코스트별 유닛 타일 (롤체지지/메타TFT 스타일 색 코딩) */
+  .units{display:flex; flex-wrap:wrap; gap:5px; margin-top:2px;}
+  .unit{display:inline-flex; align-items:center; gap:5px; padding:3px 9px 3px 3px; border-radius:9px;
+    background:var(--bg2); border:1px solid var(--line); font-size:12.5px; line-height:1;}
+  .unit .cnum{width:17px; height:17px; border-radius:5px; font-size:10px; font-weight:900;
+    display:inline-flex; align-items:center; justify-content:center; color:#0b0e13;}
+  .unit.c1 .cnum{background:#9aa4b2;} .unit.c2 .cnum{background:#22c55e;}
+  .unit.c3 .cnum{background:#3b82f6;} .unit.c4 .cnum{background:#a855f7;} .unit.c5 .cnum{background:#f0b429;}
+  .unit.c0 .cnum{background:#5a5f66;}
+  .unit .nm{color:var(--fg2);}
+  .unit.carry{border-color:var(--gold); background:rgba(240,180,41,.1);}
+  .unit.carry .nm{color:var(--gold); font-weight:800;}
+  /* 티어별 색 띠 덱 카드 */
+  .card.tS{border-left:3px solid var(--gold);}
+  .card.tA{border-left:3px solid var(--purple);}
+  .card.tB{border-left:3px solid var(--blue);}
+  .card.tC{border-left:3px solid var(--silver);}
 </style>
 </head>
 <body>
@@ -769,24 +786,32 @@ function renderEasy(){
       <div class="card-head"><div class="easy-name">${i+1}. ${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
       <div class="easy-line" style="color:var(--fg3)">${esc(pick.why)}</div>
       <div class="easy-line">🎯 <b>캐리</b> ${esc(car.unit.split('(')[0].trim())}${carItems.length?` → <span class="easy-items">${carItems.map(esc).join(' + ')}</span>`:''}</div>
-      <div class="easy-line">🧩 <b>모을 챔프</b> <span class="sub-hint">★=캐리</span></div>
-      <div class="chips">${fin.map(n=>{const c=carryStr.includes(n);return `<span class="chip ${c?'star':''}">${c?'★':''}${esc(n)}</span>`;}).join('')}</div>
+      <div class="easy-line">🧩 <b>모을 챔프</b> <span class="sub-hint">★=캐리 · 숫자=코스트</span></div>
+      <div class="units">${unitTiles(fin, carryStr)}</div>
       <div class="easy-line">🕹️ <b>운영</b> Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
     </div>`;
   }).join('');
 }
 
+function unitTiles(names, carryStr){
+  return (names||[]).map(n=>{
+    const c=(typeof champByName!=='undefined') ? champByName[n] : null;
+    const cost=c?c.cost:0;
+    const carry=!!(carryStr && carryStr.includes(n));
+    return `<span class="unit c${cost} ${carry?'carry':''}"><span class="cnum">${cost||'?'}</span><span class="nm">${carry?'★':''}${esc(n)}</span></span>`;
+  }).join('');
+}
+
 function renderPocket(){
   $('#pocketList').innerHTML = POCKET_DECKS.map(d=>{
-    const fin=(d.final||[]).map(n=>{const c=d.carry.unit.includes(n); return `<span class="chip ${c?'star':''}">${c?'★':''}${esc(n)}</span>`;}).join('');
-    return `<div class="card">
+    return `<div class="card t${d.tier}">
       <div class="card-head"><div class="deck-name">🍯 ${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
       <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
       <div class="easy-line" style="color:var(--gold); margin-top:6px">왜 꿀? ${esc(d.why)}</div>
       <div class="label">핵심 캐리</div>
       <div class="carry"><div class="carry-name">${esc(d.carry.unit)}</div><div class="items">${d.carry.items.map(i=>`<span class="item">${esc(i)}</span>`).join('')}</div></div>
-      <div class="label">🏁 완성 보드 <span class="sub-hint">★=캐리</span></div>
-      <div class="chips">${fin}</div>
+      <div class="label">🏁 완성 보드 <span class="sub-hint">★=캐리 · 숫자=코스트</span></div>
+      <div class="units">${unitTiles(d.final, d.carry.unit)}</div>
       <div class="label">추천 증강</div><div class="chips"><span class="chip star">${esc(d.aug)}</span></div>
       <div class="meta" style="margin-top:10px">💡 ${esc(d.note)}</div>
     </div>`;
@@ -795,12 +820,8 @@ function renderPocket(){
 
 function finalChips(d){
   const fin = DECK_FINAL[d.name];
-  if(!fin) return d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('');
-  const carryStr = (d.carries||[]).map(c=>c.unit).join(' ');
-  return fin.map(n=>{
-    const isCarry = carryStr.includes(n);
-    return `<span class="chip ${isCarry?'star':''}">${isCarry?'★':''}${esc(n)}</span>`;
-  }).join('');
+  if(!fin) return `<div class="chips">${d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('')}</div>`;
+  return `<div class="units">${unitTiles(fin, (d.carries||[]).map(c=>c.unit).join(' '))}</div>`;
 }
 
 function renderDecks(q=""){
@@ -811,7 +832,7 @@ function renderDecks(q=""){
     return hay.includes(q);
   });
   $('#deckList').innerHTML = list.length ? list.map(d=>`
-    <div class="card">
+    <div class="card t${d.tier}">
       <div class="card-head">
         <div class="deck-name">${esc(d.name)}</div>
         <span class="tier ${d.tier}">${d.tier}</span>
@@ -823,8 +844,8 @@ function renderDecks(q=""){
           <div class="carry-name">${esc(c.unit)}</div>
           <div class="items">${c.items.map(i=>`<span class="item">${esc(i)}</span>`).join('')}</div>
         </div>`).join('')}
-      <div class="label">🏁 완성 보드 (최종 챔) <span class="sub-hint">★=캐리</span></div>
-      <div class="chips">${finalChips(d)}</div>
+      <div class="label">🏁 완성 보드 (최종 챔) <span class="sub-hint">★=캐리 · 숫자=코스트</span></div>
+      ${finalChips(d)}
       ${d.augments?.length?`<div class="label">추천 증강</div><div class="chips">${d.augments.map(a=>`<span class="chip star">${esc(a)}</span>`).join('')}</div>`:''}
       ${d.notes?`<div class="meta" style="margin-top:10px">💡 ${esc(d.notes)}</div>`:''}
       ${DECK_GUIDE[d.name]?`<details class="dguide"><summary>레벨 가이드 · 배치도</summary>${guideHtml(d.name)}</details>`:''}
