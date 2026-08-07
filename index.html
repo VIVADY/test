@@ -65,7 +65,17 @@
     main{max-width:1180px; padding:20px 22px 48px;}
     #deckList{display:grid; grid-template-columns:1fr 1fr; gap:12px; align-items:start;}
     #dogamResult.grid{display:grid; grid-template-columns:repeat(auto-fill,minmax(250px,1fr)); gap:10px; align-items:start;}
+    /* 덱추천: 입력 | 결과 2단 */
+    .reco-grid{display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start;
+      grid-template-areas:"uin uout" "oin rout";}
+    #recoUnitIn{grid-area:uin;} #unitResult{grid-area:uout;}
+    #recoOtherIn{grid-area:oin;} #recoOut{grid-area:rout;}
+    .reco-grid .divider{display:none;}
+    /* 분석: 입력 | 결과 2단 */
+    #view-analysis .ana-grid{display:grid; grid-template-columns:1fr 1fr; gap:22px; align-items:start;}
   }
+  .why{font-size:12px; color:var(--gold); margin-top:3px; line-height:1.4;}
+  .cut-chip{border-color:rgba(239,68,68,.45)!important; color:#f3a2a2!important;}
 
   /* 검색 */
   .search{
@@ -246,37 +256,45 @@
     <div class="col-title">🧭 덱 추천</div>
     <p class="reco-help">지금 <b>필드 유닛</b>을 입력하면 도감으로 <b>특성 현황·추가할 유닛·목표 덱</b>을 실시간 분석해요. 아래에서 <b>기본 아이템·레벨·증강</b>도 함께 넣으면 더 정확해져요.</p>
 
-    <div class="label">🔴 지금 필드 유닛 <span class="sub-hint">— 코스트 골라 탭하면 추가/제거</span></div>
-    <div class="picker" id="unitCostTabs"></div>
-    <div class="picker" id="unitGrid"></div>
-    <input class="search" id="unitSearch" placeholder="또는 이름으로 검색…" style="margin:8px 0 6px;">
-    <div class="picker" id="unitOptions"></div>
-    <div class="label" style="margin-top:8px;">선택한 유닛 <span id="unitSelCount" class="sub-hint"></span></div>
-    <div class="picker" id="unitSelected"></div>
-    <div id="unitResult"></div>
+    <div class="reco-grid">
+      <div id="recoUnitIn">
+        <div class="label">🔴 지금 필드 유닛 <span class="sub-hint">— 코스트 골라 탭하면 추가/제거</span></div>
+        <div class="picker" id="unitCostTabs"></div>
+        <div class="picker" id="unitGrid"></div>
+        <input class="search" id="unitSearch" placeholder="또는 이름으로 검색…" style="margin:8px 0 6px;">
+        <div class="picker" id="unitOptions"></div>
+        <div class="label" style="margin-top:8px;">선택한 유닛 <span id="unitSelCount" class="sub-hint"></span></div>
+        <div class="picker" id="unitSelected"></div>
+      </div>
 
-    <hr class="divider">
+      <div id="unitResult"></div>
 
-    <div class="label">가진 기본 아이템 <span class="sub-hint">— − / + 로 개수 조절 (3개 이상 OK)</span></div>
-    <div id="compSteppers"></div>
+      <div id="recoOtherIn">
+        <hr class="divider">
+        <div class="label">가진 기본 아이템 <span class="sub-hint">— − / + 로 개수 조절 (3개 이상 OK)</span></div>
+        <div id="compSteppers"></div>
 
-    <div class="label" style="margin-top:12px;">현재 레벨 (선택)</div>
-    <div class="picker" id="lvlPicker"></div>
+        <div class="label" style="margin-top:12px;">현재 레벨 (선택)</div>
+        <div class="picker" id="lvlPicker"></div>
 
-    <div class="label" style="margin-top:12px;">보유 골드 <span id="goldVal" class="sub-hint">— 미설정</span></div>
-    <input type="range" id="goldRange" min="0" max="100" step="1" value="0" class="gold-range">
-    <div class="picker" id="goldPresets"></div>
+        <div class="label" style="margin-top:12px;">보유 골드 <span id="goldVal" class="sub-hint">— 미설정</span></div>
+        <input type="range" id="goldRange" min="0" max="100" step="1" value="0" class="gold-range">
+        <div class="picker" id="goldPresets"></div>
 
-    <div class="label" style="margin-top:12px;">제안된 증강 <span class="sub-hint">— 뜬 증강을 검색해 추가 (최대 3개)</span></div>
-    <input class="search" id="augSearch2" placeholder="증강 검색 (예: 침략자 제드)" style="margin-bottom:6px;">
-    <div class="picker" id="augOptions"></div>
-    <div class="picker" id="augSelected"></div>
+        <div class="label" style="margin-top:12px;">제안된 증강 <span class="sub-hint">— 뜬 증강을 검색해 추가 (최대 3개)</span></div>
+        <input class="search" id="augSearch2" placeholder="증강 검색 (예: 침략자 제드)" style="margin-bottom:6px;">
+        <div class="picker" id="augOptions"></div>
+        <div class="picker" id="augSelected"></div>
+      </div>
 
-    <div class="row" style="margin:12px 0 4px; justify-content:space-between;">
-      <div class="label" style="margin:0;">추천 결과</div>
-      <span id="recoReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 초기화</span>
+      <div id="recoOut">
+        <div class="row" style="margin:0 0 4px; justify-content:space-between;">
+          <div class="label" style="margin:0;">추천 결과</div>
+          <span id="recoReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 초기화</span>
+        </div>
+        <div id="recoResult"></div>
+      </div>
     </div>
-    <div id="recoResult"></div>
   </section>
 
   <!-- ============ 추천 덱 ============ -->
@@ -1011,11 +1029,28 @@ function traitCounts(){
 }
 function nextUnitSuggestions(cnt){
   return CHAMPS.filter(c=>!myUnits.has(c.n)).map(c=>{
-    let s=0, help=[];
+    let s=0; const help=[];
     parseTraits(c).forEach(t=>{ const cc=cnt[t]||0; if(cc<1) return; const next=TRAIT_BP[t].find(b=>b>cc);
-      if(next!==undefined){ s += (cc+1===next?3:1); help.push(t); } });
-    return {c, s, help};
+      if(next!==undefined){ const complete=cc+1===next; s += complete?3:1; help.push({t,cc,next,complete}); } });
+    // 추천 이유 (왜 넣나): 구간 완성 우선, 없으면 특성 보강
+    let reason='';
+    if(help.length){
+      const comp=help.filter(h=>h.complete);
+      if(comp.length) reason = comp.map(h=>`${h.t} ${h.next} 완성`).join(', ');
+      else { const top=[...help].sort((a,b)=>b.cc-a.cc).slice(0,2); reason = top.map(h=>`${h.t} ${h.cc+1}`).join(' · ')+' 보강'; }
+    }
+    return {c, s, reason, help:help.map(h=>h.t)};
   }).filter(x=>x.s>0).sort((a,b)=>b.s-a.s || a.c.cost-b.c.cost).slice(0,6);
+}
+// 빼도 되는 유닛: 현재 어떤 활성 특성에도 기여하지 않는(전부 미달) 유닛
+function cutSuggestions(cnt){
+  const first={}; Object.keys(TRAIT_BP).forEach(t=>{ const bp=TRAIT_BP[t]; if(bp.length) first[t]=Math.min(...bp); });
+  return [...myUnits].map(n=>{
+    const c=champByName[n]; if(!c) return null;
+    const ts=parseTraits(c);
+    const contributes = ts.some(t=> first[t]!==undefined && (cnt[t]||0) >= first[t]);
+    return contributes ? null : {n, cost:c.cost};
+  }).filter(Boolean);
 }
 function bestDecks(){
   const names=[...myUnits]; if(!names.length) return [];
@@ -1068,13 +1103,21 @@ function renderUnitResult(){
     ? `<div class="chips">`+active.map(x=>`<span class="chip ${x.need===1?'star':''}">${esc(x.t)} ${x.c}${x.a?'★':''}${x.need===1?' · 1명 더!':x.next?` /${x.next}`:' (MAX)'}</span>`).join('')+`</div>`
     : `<div class="seg">2명 이상 모인 특성이 아직 없어요</div>`;
 
-  html += `<div class="label" style="margin-top:12px">추가하면 좋은 유닛 <span class="sub-hint">— 삼신기 포함</span></div>`;
+  html += `<div class="label" style="margin-top:12px">추가하면 좋은 유닛 <span class="sub-hint">— 왜 넣는지 + 삼신기</span></div>`;
   html += sugg.length
     ? sugg.map(x=>`<div class="dcard" style="padding:9px 11px; margin-bottom:6px">
-        <div class="dh"><span class="cost c${x.c.cost}">${x.c.cost}</span><span class="nm" style="font-size:13.5px">${esc(x.c.n)}</span><span class="en">${esc(x.help.slice(0,3).join(', '))}</span></div>
+        <div class="dh"><span class="cost c${x.c.cost}">${x.c.cost}</span><span class="nm" style="font-size:13.5px">${esc(x.c.n)}</span></div>
+        ${x.reason?`<div class="why">➕ ${esc(x.reason)}</div>`:''}
         ${x.c.items?`<div class="kv"><b>삼신기</b> ${esc(x.c.items)}</div>`:''}
       </div>`).join('')
     : `<div class="seg">추천 유닛 없음</div>`;
+
+  const cuts = active.length ? cutSuggestions(cnt) : [];
+  if(cuts.length){
+    html += `<div class="label" style="margin-top:12px">✂️ 빼도 되는 유닛 <span class="sub-hint">— 지금 특성에 기여 없음</span></div>`;
+    html += `<div class="chips">`+cuts.map(x=>`<span class="chip cut-chip"><span class="cost c${x.cost}">${x.cost}</span> ${esc(x.n)}</span>`).join('')+`</div>`;
+    html += `<div class="seg">캐리가 아니라면, 특성 맞는 유닛으로 교체하세요.</div>`;
+  }
 
   html += `<div class="label" style="margin-top:12px">🎯 목표 덱 <span class="sub-hint">— 내 유닛 겹침 순</span></div>`;
   html += decks.length ? decks.map((b,i)=>{
