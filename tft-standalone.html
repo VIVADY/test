@@ -557,6 +557,18 @@ const DECK_GUIDE = {
   },
 };
 
+/* --- 1-c) 덱별 완성 보드(최종 챔피언) — 도감에 실제 있는 챔프로 특성 맞춤 구성(표준 예시) --- */
+const DECK_FINAL = {
+  "N.O.V.A. 벡스 파스트 9": ["벡스","자야","누누와 윌럼프","룰루","카르마","모르가나","그레이브즈","진","트위스티드 페이트"],
+  "메카 (아우렐리온 솔)": ["아우렐리온 솔","마이티 메크","우르곳","탐 켄치","카르마","모르가나","오로라","밉시"],
+  "암흑의 별 진 (스페이스 오페라)": ["진","카르마","카이사","리산드라","초가스","모데카이저","자야","리븐"],
+  "리산드라 리롤": ["리산드라","초가스","모데카이저","카이사","카르마","진","오로라","탐 켄치"],
+  "사미라 리롤": ["사미라","오른","누누와 윌럼프","나르","이즈리얼","진","자야"],
+  "별돌보미 자야": ["자야","진","벡스","누누와 윌럼프","룰루","리븐","탐 켄치","트위스티드 페이트"],
+  "Capped & Loaded (AD 파스트9)": ["피오라","그레이브즈","벡스","케이틀린","탈론","누누와 윌럼프","자야","진","카르마"],
+  "카르마 여행자 (미러 메이헴)": ["카르마","마이티 메크","오로라","밉시","파이크","르블랑","모르가나","나미"],
+};
+
 /* --- 2) 아이템 조합 (표준 조합표) ---
    components: 기본 아이템,  combos: {재료1 + 재료2 → 완성 아이템} */
 const COMPONENTS = ["B.F. 대검","곡궁","쓸데없이 큰 지팡이","여신의 눈물","쇠사슬 조끼","음전자 망토","거인의 허리띠","연습용 장갑","뒤집개(상징)"];
@@ -679,6 +691,16 @@ function guideHtml(name){
   return h;
 }
 
+function finalChips(d){
+  const fin = DECK_FINAL[d.name];
+  if(!fin) return d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('');
+  const carryStr = (d.carries||[]).map(c=>c.unit).join(' ');
+  return fin.map(n=>{
+    const isCarry = carryStr.includes(n);
+    return `<span class="chip ${isCarry?'star':''}">${isCarry?'★':''}${esc(n)}</span>`;
+  }).join('');
+}
+
 function renderDecks(q=""){
   q=q.trim().toLowerCase();
   const list = DECKS.filter(d=>{
@@ -699,8 +721,8 @@ function renderDecks(q=""){
           <div class="carry-name">${esc(c.unit)}</div>
           <div class="items">${c.items.map(i=>`<span class="item">${esc(i)}</span>`).join('')}</div>
         </div>`).join('')}
-      <div class="label">조합</div>
-      <div class="chips">${d.comp.map(u=>`<span class="chip">${esc(u)}</span>`).join('')}</div>
+      <div class="label">🏁 완성 보드 (최종 챔) <span class="sub-hint">★=캐리</span></div>
+      <div class="chips">${finalChips(d)}</div>
       ${d.augments?.length?`<div class="label">추천 증강</div><div class="chips">${d.augments.map(a=>`<span class="chip star">${esc(a)}</span>`).join('')}</div>`:''}
       ${d.notes?`<div class="meta" style="margin-top:10px">💡 ${esc(d.notes)}</div>`:''}
       ${DECK_GUIDE[d.name]?`<details class="dguide"><summary>레벨 가이드 · 배치도</summary>${guideHtml(d.name)}</details>`:''}
