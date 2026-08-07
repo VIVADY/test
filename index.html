@@ -238,6 +238,7 @@
   .reco-fold>summary::-webkit-details-marker{display:none;}
   .blvl{display:flex; gap:6px; flex-wrap:wrap; margin:6px 0 2px;}
   .blvl-tag{font-size:11px; font-weight:800; color:var(--gold); background:rgba(240,180,41,.12); border-radius:7px; padding:2px 8px;}
+  .aug-scroll{max-height:200px; overflow-y:auto; align-content:flex-start; padding:2px; border:1px solid var(--line); border-radius:10px;}
 </style>
 </head>
 <body>
@@ -283,9 +284,10 @@
         <input type="range" id="goldRange" min="0" max="100" step="1" value="0" class="gold-range">
         <div class="picker" id="goldPresets"></div>
 
-        <div class="label" style="margin-top:12px;">제안된 증강 <span class="sub-hint">— 뜬 증강을 검색해 추가 (최대 3개)</span></div>
-        <input class="search" id="augSearch2" placeholder="증강 검색 (예: 침략자 제드)" style="margin-bottom:6px;">
+        <div class="label" style="margin-top:12px;">제안된 증강 <span class="sub-hint">— 티어 고르고 목록에서 터치 (최대 3개)</span></div>
+        <div class="picker" id="augTier"></div>
         <div class="picker" id="augOptions"></div>
+        <input class="search" id="augSearch2" placeholder="이름으로 검색(보조)" style="margin:6px 0;">
         <div class="picker" id="augSelected"></div>
       </details>
 
@@ -774,6 +776,7 @@ const RECIPE = {};                                    // 완성템 → [재료1,
 COMBOS.forEach(c=>{ RECIPE[c.result] = c.recipe.split(" + "); });
 const counts = {}; COMPS8.forEach(c=>counts[c]=0);    // 가진 기본템 개수
 const offeredAug = new Set();                         // 제안된(뜬) 증강 이름
+let augTier = '';                                     // 증강 티어 필터
 let curLevel = null;                                  // 현재 레벨
 let curGold = null;                                   // 보유 골드
 const TIER_ORDER = {S:0, A:1, B:2, C:3};
@@ -799,14 +802,28 @@ function renderPickers(){
 }
 
 function renderAugInput(){
+  $('#augTier').innerHTML = [['','전체'],['prismatic','프리즘'],['gold','골드'],['silver','실버']]
+    .map(([v,l])=>`<span class="pick ${augTier===v?'on':''}" data-at="${v}">${l}</span>`).join('');
   const q=($('#augSearch2').value||'').trim().toLowerCase();
-  const opts = q ? (DB.augments||[]).filter(a=>!offeredAug.has(a.n) && (a.n+(a.desc||'')).toLowerCase().includes(q)).slice(0,10) : [];
-  $('#augOptions').innerHTML = q
-    ? (opts.map(a=>`<span class="pick" data-a="${esc(a.n)}"><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span> ${esc(a.n)}</span>`).join('') || `<span class="seg">검색 결과 없음</span>`)
-    : '';
+  const box=$('#augOptions');
+  if(!augTier && !q){
+    box.className='picker';
+    box.innerHTML=`<span class="seg">티어(프리즘·골드·실버)를 고르면 목록이 떠요. 이름 검색도 가능.</span>`;
+  } else {
+    const list=(DB.augments||[]).filter(a=>!offeredAug.has(a.n)
+      && (!augTier || a.tier===augTier)
+      && (!q || (a.n+(a.desc||'')).toLowerCase().includes(q)))
+      .sort((a,b)=>a.n.localeCompare(b.n,'ko'));
+    const shown=list.slice(0,80);
+    box.className='picker aug-scroll';
+    box.innerHTML = shown.length
+      ? shown.map(a=>`<span class="pick" data-a="${esc(a.n)}"><span class="aug-tag ${a.tier}">${TIER_KO[a.tier]}</span> ${esc(a.n)}</span>`).join('')
+        + (list.length>shown.length?`<span class="seg">…${list.length-shown.length}개 더 · 검색으로 좁혀보세요</span>`:'')
+      : `<span class="seg">결과 없음</span>`;
+  }
   $('#augSelected').innerHTML = offeredAug.size
     ? [...offeredAug].map(n=>`<span class="pick on" data-rm="${esc(n)}">${esc(n)} ✕</span>`).join('')
-    : `<span class="seg">뜬 증강을 검색해 추가하세요 (최대 3개)</span>`;
+    : `<span class="seg">뜬 증강을 골라 추가하세요 (최대 3개)</span>`;
 }
 
 // 덱 점수: 주력 캐리 완성템을 내 재료(개수)로 몇 개 만들 수 있나
@@ -913,12 +930,14 @@ $('#lvlPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) retur
 $('#goldRange').oninput = e=>{ curGold=+e.target.value; renderPickers(); renderReco(); };
 $('#goldPresets').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
   curGold=+el.dataset.g; $('#goldRange').value=curGold; renderPickers(); renderReco(); };
+$('#augTier').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  augTier = (augTier===el.dataset.at ? '' : el.dataset.at); renderAugInput(); };
 $('#augSearch2').oninput = ()=>renderAugInput();
 $('#augOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.a) return;
   if(offeredAug.size<3) offeredAug.add(el.dataset.a); $('#augSearch2').value=''; renderAugInput(); renderReco(); };
 $('#augSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
   offeredAug.delete(el.dataset.rm); renderAugInput(); renderReco(); };
-$('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); offeredAug.clear(); curLevel=null; curGold=null;
+$('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); offeredAug.clear(); curLevel=null; curGold=null; augTier='';
   $('#goldRange').value=0; $('#augSearch2').value=''; renderPickers(); renderAugInput(); renderReco(); };
 
 /* ===== 실시간 유닛 기반 추천 (도감 데이터 활용) ===== */
