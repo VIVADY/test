@@ -157,6 +157,14 @@
   .reco-item.ready{background:rgba(34,197,94,.15); color:var(--green);}
   .reco-item.partial{background:rgba(240,180,41,.13); color:var(--gold);}
   .reco-item.miss{background:var(--bg3); color:var(--fg3);}
+  .sub-hint{font-weight:400; text-transform:none; letter-spacing:0; color:var(--fg3); font-size:11px;}
+  .advice{margin-top:9px; padding:9px 11px; background:var(--bg3); border-radius:10px; font-size:12.5px; color:var(--fg2); line-height:1.55;}
+  .advice b{color:var(--fg);}
+  .aug-pick{margin-top:8px;}
+  .aug-rec{display:flex; align-items:center; gap:7px; font-size:12.5px; padding:5px 0; border-top:1px solid var(--line);}
+  .aug-rec:first-child{border-top:none;}
+  .aug-rec .rank{font-weight:800; color:var(--gold); width:16px; text-align:center;}
+  .aug-rec .best{margin-left:auto; font-size:10.5px; font-weight:800; color:var(--green);}
 </style>
 </head>
 <body>
@@ -176,12 +184,23 @@
   <!-- ============ 덱 추천 (내 재료 기반) ============ -->
   <section class="view" id="view-reco">
     <div class="col-title">🧭 덱 추천</div>
-    <p class="reco-help">지금 가진 <b>기본 아이템</b>과 받은 <b>증강</b>을 탭하면, 내 재료로 만들기 유리한 덱을 <b>매칭률 순</b>으로 추천해요.</p>
-    <div class="label">가진 기본 아이템 <span id="heldCount" style="color:var(--gold)"></span></div>
+    <p class="reco-help">가진 <b>기본 아이템</b>·받은 <b>증강</b>·현재 <b>레벨/골드</b>를 입력하면, 유리한 덱을 <b>매칭률 순</b>으로 추천하고 <b>롤·레벨·증강 선택</b>까지 조언해요.</p>
+
+    <div class="label">가진 기본 아이템 <span class="sub-hint">— 탭할 때마다 개수 ↑ (0→3)</span></div>
     <div class="picker" id="compPicker"></div>
-    <div class="label">받은 증강 (선택)</div>
+
+    <div class="label">현재 레벨 (선택)</div>
+    <div class="picker" id="lvlPicker"></div>
+    <div class="row" style="gap:9px; align-items:center; margin-top:4px;">
+      <span style="font-size:13px; color:var(--fg2);">보유 골드</span>
+      <input id="goldInput" class="search" type="number" inputmode="numeric" placeholder="예: 50"
+             style="width:120px; margin:0; padding:8px 11px;">
+    </div>
+
+    <div class="label">받은 / 제안된 증강 (선택)</div>
     <div class="picker" id="augPicker"></div>
-    <div class="row" style="margin:10px 0 4px; justify-content:space-between;">
+
+    <div class="row" style="margin:12px 0 4px; justify-content:space-between;">
       <div class="label" style="margin:0;">추천 결과</div>
       <span id="recoReset" style="font-size:12px; color:var(--fg3); cursor:pointer;">↺ 초기화</span>
     </div>
@@ -292,6 +311,38 @@ const DECKS = [
     augments: ["더블 인듀런스 (Double Endurance) 오프너"],
     notes: "⚠️ 사미라에 무한의 대검 금지(다른 검 아이템). 7렙 30골 위로 롤. 오른은 앞 중앙 어그로, 사미라는 백라인 안전하게 램핑. 최후의 속삭임은 후반 자야/진으로 이전 가능.",
   },
+  {
+    name: "스타게이저 자야",
+    tier: "S", level: "8 파스트", playstyle: "파스트 8 · 자야 평타 캐리",
+    carries: [
+      { unit: "자야 (Xayah, 메인 캐리)", items: ["구인수의 격노검", "크라켄의 분노", "거인 학살자"] },
+      { unit: "진 (후반 2차 캐리)", items: ["AD 딜템"] },
+    ],
+    comp: ["리븐", "자야", "누누", "진", "스타게이저 프론트"],
+    augments: ["아이템 증강 우선"],
+    notes: "스타게이저 별자리 선택 중요(2-1 마운틴 / 뱀 / 멧돼지 / 제단 / 분수). 자야는 BIS 의존 높음(레드 버프+크라켄 선호). 파스트8, 4-1 롤다운으로 자야2 + 4코 탱커(탐 켄치/누누/라무스).",
+  },
+  {
+    name: "Capped & Loaded (AD 파스트9)",
+    tier: "S", level: "9 레벨링", playstyle: "파스트 9 · AD 유연 캐리",
+    carries: [
+      { unit: "피오라 / 그레이브즈 / 뷔 (유연 캐리)", items: ["구인수의 격노검", "거인 학살자", "최후의 속삭임"] },
+    ],
+    comp: ["피오라", "그레이브즈", "뷔", "누누", "케이틀린(그레이브즈 홀더)", "탈론(피오라 홀더)"],
+    augments: ["경제/연승형 오프너"],
+    notes: "9렙 공격적으로. 2-1 4렙 연승, 3-2 6렙 유지. 케이틀린이 그레이브즈 아이템, 탈론이 피오라 아이템 홀더. 경제 유지하며 9렙 5코 확보.",
+  },
+  {
+    name: "카르마 보이저 (미러 메이헴)",
+    tier: "A", level: "8 파스트", playstyle: "파스트 8 · 6보이저 실드+딜증폭",
+    carries: [
+      { unit: "카르마 (Karma, 4코 캐리)", items: ["푸른 파수꾼", "보석 건틀릿", "라바돈의 죽음모자"] },
+      { unit: "아우렐리온 솔 (2차 캐리)", items: ["보석 건틀릿", "AP 딜템"] },
+    ],
+    comp: ["르블랑", "카르마", "모르가나", "밉시", "파이크", "아우로라", "마이티 메크"],
+    augments: ["보이저 엠블럼(6보이저)"],
+    notes: "파스트8. 보이저 = 전열 실드 + 후열 딜증폭. 6보이저는 보이저 엠블럼 1개 필요. 카르마에 최고 AP템, 저코 보이저(밉시·파이크)로 특성 유지.",
+  },
 ];
 
 /* --- 2) 아이템 조합 (표준 조합표) ---
@@ -339,12 +390,12 @@ const COMBOS = [
    type: prismatic(3티어) / gold(2티어) / silver(1티어)
    ※ 정확한 수치 효과는 인게임 설명을 참고하세요. */
 const AUGMENTS = [
-  { name:"코스믹 리스타트 (Cosmic Restart)", type:"prismatic", desc:"이번 패치 최상위권 프리즘 증강." },
-  { name:"에포크+ (Epoch+)", type:"prismatic", desc:"강력한 경제/스케일 프리즘 증강." },
-  { name:"아우라 파밍 (Aura Farming)", type:"gold", desc:"현 패치 강한 골드 증강." },
-  { name:"익스플로시브 그로스 (Explosive Growth)", type:"gold", desc:"레벨업·스케일 지향 강한 픽." },
-  { name:"어드밴스드 론 (Advanced Loan)", type:"silver", desc:"초반 골드 대출형 경제 증강." },
-  { name:"더블 인듀런스 (Double Endurance)", type:"silver", desc:"리롤덱(사미라 등) 추천 오프너." },
+  { name:"코스믹 리스타트 (Cosmic Restart)", type:"prismatic", cat:"econ",   desc:"이번 패치 최상위권 프리즘 증강." },
+  { name:"에포크+ (Epoch+)",                 type:"prismatic", cat:"econ",   desc:"강력한 경제/스케일 프리즘 증강." },
+  { name:"아우라 파밍 (Aura Farming)",        type:"gold",      cat:"combat", desc:"현 패치 강한 전투 골드 증강." },
+  { name:"익스플로시브 그로스 (Explosive Growth)", type:"gold",  cat:"level",  desc:"레벨업·스케일 지향(파스트덱) 강한 픽." },
+  { name:"어드밴스드 론 (Advanced Loan)",     type:"silver",    cat:"econ",   desc:"초반 골드 대출형 경제 증강." },
+  { name:"더블 인듀런스 (Double Endurance)",  type:"silver",    cat:"reroll", desc:"리롤덱(사미라 등) 추천 오프너." },
 ];
 
 /* --- 4) 특성 활성화 구간 (Set 17 주요 특성) --- */
@@ -439,41 +490,102 @@ $('#augSearch').oninput  = e=>renderAugs(e.target.value);
 const COMPS8 = COMPONENTS.slice(0,8);                 // 기본 아이템 8종 (엠블럼 제외)
 const RECIPE = {};                                    // 완성템 → [재료1, 재료2]
 COMBOS.forEach(c=>{ RECIPE[c.result] = c.recipe.split(" + "); });
-const held = new Set();      // 내가 가진 기본템
-const gotAug = new Set();    // 받은 증강
+const counts = {}; COMPS8.forEach(c=>counts[c]=0);    // 가진 기본템 개수 (0~3)
+const gotAug = new Set();                             // 받은/제안된 증강
+let curLevel = null;                                  // 현재 레벨
 const TIER_ORDER = {S:0, A:1, B:2, C:3};
+const augName = s => s.split(' (')[0];
+const heldTotal = () => COMPS8.reduce((n,c)=>n+counts[c],0);
+const isReroll = d => /리롤/.test(d.playstyle + d.level);
 
 function renderPickers(){
-  $('#compPicker').innerHTML = COMPS8.map(c=>`<span class="pick ${held.has(c)?'on':''}" data-c="${esc(c)}">${esc(c)}</span>`).join('');
-  $('#augPicker').innerHTML  = AUGMENTS.map(a=>`<span class="pick ${gotAug.has(a.name)?'on':''}" data-a="${esc(a.name)}">${esc(a.name.split(' (')[0])}</span>`).join('');
-  $('#heldCount').textContent = held.size ? `· ${held.size}개 선택` : '';
+  $('#compPicker').innerHTML = COMPS8.map(c=>{
+    const n=counts[c];
+    return `<span class="pick ${n?'on':''}" data-c="${esc(c)}">${esc(c)}${n?` ×${n}`:''}</span>`;
+  }).join('');
+  $('#lvlPicker').innerHTML = [4,5,6,7,8,9].map(l=>
+    `<span class="pick ${curLevel===l?'on':''}" data-lvl="${l}">Lv ${l}</span>`).join('');
+  $('#augPicker').innerHTML = AUGMENTS.map(a=>
+    `<span class="pick ${gotAug.has(a.name)?'on':''}" data-a="${esc(a.name)}">${esc(augName(a.name))}</span>`).join('');
 }
 
-// 덱 점수 계산: 주력 캐리의 완성템 중 내 재료로 만들 수 있는 비율
+// 덱 점수: 주력 캐리 완성템을 내 재료(개수)로 몇 개 만들 수 있나 (같은 재료 중복 소비 정확 반영)
 function scoreDeck(d){
-  const core = (d.carries[0]?.items || []).filter(it=>RECIPE[it]);   // 실제 완성템만
+  const core = (d.carries[0]?.items || []).filter(it=>RECIPE[it]);
+  const avail = {...counts};
   let matched=0, total=0, ready=0;
   const items = core.map(it=>{
     const [a,b] = RECIPE[it];
-    const have = (held.has(a)?1:0) + (held.has(b)?1:0);
-    matched += have; total += 2;
-    if(have===2){ ready++; return {it, state:'ready', miss:[]}; }
-    if(have===1){ return {it, state:'partial', miss:[held.has(a)?b:a]}; }
-    return {it, state:'miss', miss:[a,b]};
+    let have=0, miss=[];
+    if(avail[a]>0){ avail[a]--; have++; } else miss.push(a);
+    if(avail[b]>0){ avail[b]--; have++; } else miss.push(b);
+    matched+=have; total+=2;
+    const state = have===2?'ready':have===1?'partial':'miss';
+    if(have===2) ready++;
+    return {it, state, miss};
   });
   const pct = total ? matched/total : 0;
   let augBonus = 0;
-  (d.augments||[]).forEach(da=> gotAug.forEach(g=>{ if(da.includes(g.split(' (')[0])) augBonus=0.15; }));
+  (d.augments||[]).forEach(da=> gotAug.forEach(g=>{ if(da.includes(augName(g))) augBonus=0.15; }));
   return { d, items, pct, ready, coreCount:core.length, augBonus,
            score: pct + augBonus + ready*0.001 };
 }
 
+// 증강 적합도 (선택한 덱 기준)
+function augFit(a, d){
+  let s = a.type==='prismatic'?1.0 : a.type==='gold'?0.7 : 0.5;
+  if((d.augments||[]).some(da=>da.includes(augName(a.name)))) s += 0.6;
+  const rr = isReroll(d);
+  if(a.cat==='reroll')     s += rr ? 0.4 : -0.25;
+  else if(a.cat==='level') s += rr ? -0.25 : 0.3;
+  else if(a.cat==='econ')  s += 0.15;
+  return s;
+}
+function augAdvice(d){
+  const pool = gotAug.size ? AUGMENTS.filter(a=>gotAug.has(a.name)) : AUGMENTS;
+  const ranked = [...pool].map(a=>({a, f:augFit(a,d)})).sort((x,y)=>y.f-x.f).slice(0,4);
+  const title = gotAug.size ? '제안된 증강 중 추천' : '이 덱에 좋은 증강';
+  return `<div class="advice aug-pick"><b>✨ ${title}</b>`+
+    ranked.map((r,i)=>`<div class="aug-rec"><span class="rank">${i+1}</span><span>${esc(augName(r.a.name))}</span>${i===0?'<span class="best">BEST</span>':''}</div>`).join('')+
+    `</div>`;
+}
+
+// 롤/레벨 조언 (현재 레벨·골드 기반)
+function pathAdvice(d){
+  const goldVal = $('#goldInput').value;
+  if(curLevel===null && !goldVal) return '';
+  const gold = parseInt(goldVal,10);
+  const nums = (d.level.match(/\d+/g)||[]).map(Number);
+  const rr = isReroll(d);
+  const rollLv = nums[0] || (rr?7:8);
+  const pushLv = nums[nums.length-1] || (rr?8:9);
+  let line = '';
+  if(curLevel!==null){
+    if(rr){
+      if(curLevel < rollLv)      line = `아직 레벨업 단계 — <b>${rollLv}렙</b>까지 올리고 그 전엔 경제 유지(50골 이자).`;
+      else if(curLevel < 8)      line = `👉 지금이 <b>슬로우롤</b> 타이밍! <b>50골 위</b> 유지하며 조금씩 롤 → 캐리 3성.`;
+      else                        line = `3성 확보했으면 <b>${pushLv}렙</b>까지 레벨업해 마무리.`;
+    } else {
+      if(curLevel < pushLv)      line = `레벨업 <b>최우선</b>(경제 되면). 50골 이자·체력 관리하며 <b>${pushLv}렙</b>으로.`;
+      else                        line = `👉 <b>${pushLv}렙 롤다운</b>: 핵심 유닛·아이템 퀄리티 우선.`;
+    }
+  }
+  let goldLine = '';
+  if(!isNaN(gold)){
+    if(gold>=50)      goldLine = '💰 이자 최대(50골) 유지 중 👍';
+    else if(gold>=30) goldLine = '💰 급하지 않으면 50골까지 모아 이자 극대화.';
+    else              goldLine = '💰 골드 낮음 — 무리한 롤 주의, 연승/연패 보너스 관리.';
+  }
+  if(!line && !goldLine) return '';
+  return `<div class="advice"><b>🧭 지금 할 일</b><br>${line}${line&&goldLine?'<br>':''}${goldLine}</div>`;
+}
+
 function renderReco(){
-  // 아무것도 선택 안 했으면 티어순 기본 목록
-  if(held.size===0 && gotAug.size===0){
+  const nothing = heldTotal()===0 && gotAug.size===0 && curLevel===null && !$('#goldInput').value;
+  if(nothing){
     const list=[...DECKS].sort((a,b)=>TIER_ORDER[a.tier]-TIER_ORDER[b.tier]);
     $('#recoResult').innerHTML =
-      `<div class="reco-hint">👆 가진 기본 아이템을 탭하면 <b>내 재료에 유리한 순서</b>로 다시 정렬돼요. 아래는 티어 순.</div>`+
+      `<div class="reco-hint">👆 가진 기본 아이템을 탭하면 <b>내 재료에 유리한 순서</b>로 정렬돼요. 아래는 티어 순.</div>`+
       list.map(d=>`
         <div class="reco-card">
           <div class="card-head"><div class="deck-name" style="font-size:15px">${esc(d.name)}</div><span class="tier ${d.tier}">${d.tier}</span></div>
@@ -493,16 +605,19 @@ function renderReco(){
       <div class="reco-items">${r.items.map(x=>`
         <span class="reco-item ${x.state}">${x.state==='ready'?'✓ ':x.state==='partial'?'◑ ':'· '}${esc(x.it)}${x.miss.length?` <span style="opacity:.75">(필요: ${x.miss.map(esc).join(', ')})</span>`:''}</span>`).join('')}
       </div>
-      <div class="meta" style="margin-top:9px">🧭 Lv ${esc(r.d.level)} · ${esc(r.d.playstyle)}</div>
-      ${i===0 && r.d.notes ? `<div class="meta" style="margin-top:6px">💡 ${esc(r.d.notes)}</div>` : ''}
+      <div class="meta" style="margin-top:9px">Lv ${esc(r.d.level)} · ${esc(r.d.playstyle)}</div>
+      ${i===0 ? pathAdvice(r.d) + augAdvice(r.d) + (r.d.notes?`<div class="meta" style="margin-top:8px">💡 ${esc(r.d.notes)}</div>`:'') : ''}
     </div>`).join('');
 }
 
 $('#compPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
-  const c=el.dataset.c; held.has(c)?held.delete(c):held.add(c); renderPickers(); renderReco(); };
+  const c=el.dataset.c; counts[c]=(counts[c]+1)%4; renderPickers(); renderReco(); };
+$('#lvlPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
+  const l=+el.dataset.lvl; curLevel = (curLevel===l ? null : l); renderPickers(); renderReco(); };
 $('#augPicker').onclick = e=>{ const el=e.target.closest('.pick'); if(!el) return;
   const a=el.dataset.a; gotAug.has(a)?gotAug.delete(a):gotAug.add(a); renderPickers(); renderReco(); };
-$('#recoReset').onclick = ()=>{ held.clear(); gotAug.clear(); renderPickers(); renderReco(); };
+$('#goldInput').oninput = ()=>renderReco();
+$('#recoReset').onclick = ()=>{ COMPS8.forEach(c=>counts[c]=0); gotAug.clear(); curLevel=null; $('#goldInput').value=''; renderPickers(); renderReco(); };
 
 renderDecks(); renderItems(); renderAugs(); renderPickers(); renderReco();
 </script>
