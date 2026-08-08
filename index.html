@@ -302,7 +302,6 @@
   <div class="patch" id="patchInfo">예시 데이터 · 최신 패치에 맞게 수정하세요</div>
   <div class="tabs">
     <div class="tab active" data-view="easy">🔰 쉬움</div>
-    <div class="tab" data-view="decks">추천덱</div>
     <div class="tab" data-view="reco">덱추천</div>
     <div class="tab" data-view="dogam">도감</div>
   </div>
@@ -324,10 +323,13 @@
     <div class="label">🎲 오늘의 도전 덱 <span class="sub-hint">— 매일 하나씩 새 덱 도전!</span></div>
     <div id="challengeOut"></div>
 
-    <div class="label">⭐ 이 덱 중 하나를 파세요</div>
-    <div id="easyResult"></div>
+    <div class="label">⭐ 추천 덱 <span class="sub-hint">— 🔰=초보 추천 · 카드 눌러 상세(가이드·배치도)</span></div>
+    <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 벡스, 리롤)" />
+    <div id="deckList"></div>
+    <div class="label" style="margin-top:20px;">🍯 꿀덱 (숨은 픽) <span class="sub-hint">— 남들 안 잡을 때 강함 · 겹치면 트세요</span></div>
+    <div id="pocketList"></div>
 
-    <div class="cheat">
+    <div class="cheat" style="margin-top:16px;">
       <div class="ch-t">📈 레벨업 타이밍 (기본만)</div>
       <div class="ch-b"><span class="big">2-1→4렙 · 3-2→6렙 · 4-1→7렙 · 4-5→8렙 · 6-1→9렙</span><br>파스트덱은 이 타이밍에 레벨업. 리롤덱은 해당 레벨에서 멈추고 롤.</div>
     </div>
@@ -397,13 +399,6 @@
     </div>
   </section>
 
-  <!-- ============ 추천 덱 ============ -->
-  <section class="view" id="view-decks">
-    <input class="search" id="deckSearch" placeholder="덱·챔피언 검색 (예: 벡스, 리롤)" />
-    <div id="deckList"></div>
-    <div class="label" style="margin-top:20px;">🍯 꿀덱 (숨은 픽) <span class="sub-hint">— 남들 안 잡을 때 강함 · 겹치면 트세요</span></div>
-    <div id="pocketList"></div>
-  </section>
 
   <!-- ============ 도감 (챔피언·특성·아이템·증강) ============ -->
   <section class="view" id="view-dogam">
@@ -981,20 +976,27 @@ function finalChips(d){
   return `<div class="units">${unitTiles(fin, (d.carries||[]).map(c=>c.unit).join(' '))}</div>`;
 }
 
+const EASY_WHY = {}; EASY_PICKS.forEach(p=>EASY_WHY[p.name]=p.why);
 function renderDecks(q=""){
   q=q.trim().toLowerCase();
-  const list = DECKS.filter(d=>{
+  let list = DECKS.filter(d=>{
     if(!q) return true;
     const hay=(d.name+d.playstyle+d.carries.map(c=>c.unit+c.items.join()).join()+d.comp.join()).toLowerCase();
     return hay.includes(q);
   });
+  list = [...list].sort((a,b)=>{                 // 초보 추천 덱 먼저
+    const ea=EASY_WHY[a.name]!==undefined, eb=EASY_WHY[b.name]!==undefined;
+    if(ea!==eb) return ea?-1:1;
+    return TIER_ORDER[a.tier]-TIER_ORDER[b.tier];
+  });
   $('#deckList').innerHTML = list.length ? list.map(d=>`
     <div class="card t${d.tier}">
       <div class="card-head">
-        <div class="deck-name">${esc(d.name)}</div>
+        <div class="deck-name">${EASY_WHY[d.name]!==undefined?'🔰 ':''}${esc(d.name)}</div>
         <span class="tier ${d.tier}">${d.tier}</span>
       </div>
       <div class="meta">Lv ${esc(d.level)} · ${esc(d.playstyle)}</div>
+      ${EASY_WHY[d.name]!==undefined?`<div class="easy-line" style="color:var(--gold); margin-top:4px">🔰 초보 추천 — ${esc(EASY_WHY[d.name])}</div>`:''}
       <div class="label">핵심 캐리</div>
       ${d.carries.map(c=>`
         <div class="carry">
@@ -1391,7 +1393,7 @@ document.querySelectorAll('#coachFlow,#coachHp,#coachGold').forEach(el=>{
     else if(g==='gold') cGold=(cGold===v?null:v);
     renderCoach(); };
 });
-renderCoach(); renderChallenge(); renderTrouble(); renderEasy(); renderDecks(); renderPocket(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
+renderCoach(); renderChallenge(); renderTrouble(); renderDecks(); renderPocket(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
 </script>
 </body>
 </html>
