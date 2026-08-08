@@ -273,6 +273,18 @@
   .ladder-units{display:flex; flex-wrap:wrap; gap:4px;}
   .ladder-units .unit{font-size:11px; padding:2px 7px 2px 2px;}
   .ladder-units .unit .cnum{width:15px; height:15px; font-size:9px;}
+  /* 상황 코치 (차별점: 실시간 판단) */
+  .coach-box{background:var(--bg2); border:1px solid var(--line2); border-radius:14px; padding:13px; margin-bottom:14px;}
+  .coach-row{display:flex; align-items:center; gap:8px; margin-bottom:7px;}
+  .coach-lbl{flex:none; width:40px; font-size:12px; font-weight:800; color:var(--fg3);}
+  .coach-row .picker{margin:0; gap:5px;}
+  .coach-out{border-radius:12px; padding:12px 14px; margin-top:6px; border:1px solid var(--line);}
+  .coach-out .co-head{font-size:16px; font-weight:800; letter-spacing:-.02em;}
+  .coach-out .co-sub{font-size:13px; color:var(--fg2); margin-top:5px; line-height:1.55;}
+  .coach-out.danger{background:rgba(239,68,68,.12); border-color:rgba(239,68,68,.4);} .coach-out.danger .co-head{color:#ff8a8a;}
+  .coach-out.win{background:rgba(34,197,94,.12); border-color:rgba(34,197,94,.4);} .coach-out.win .co-head{color:#5ee08a;}
+  .coach-out.warn{background:rgba(240,180,41,.12); border-color:rgba(240,180,41,.4);} .coach-out.warn .co-head{color:var(--gold);}
+  .coach-out.econ{background:rgba(59,130,246,.12); border-color:rgba(59,130,246,.4);} .coach-out.econ .co-head{color:#7db3ff;}
 </style>
 </head>
 <body>
@@ -291,7 +303,16 @@
 <main>
   <!-- ============ 🔰 쉬움 (입력 필요 없는 한눈에 가이드) ============ -->
   <section class="view active" id="view-easy">
-    <p class="reco-help">입력 없이 <b>이것만 따라 하세요</b>. 게임 중 힐끗 보기용 초보 치트시트예요.</p>
+    <p class="reco-help">이 앱은 <b>"지금 뭘 할지"</b> 알려주는 코치예요. 찾아보는 사전이 아니라, 상황만 탭하면 답을 줍니다.</p>
+
+    <div class="label">🎯 지금 뭐 할까? <span class="sub-hint">— 상황 탭하면 할 일 하나</span></div>
+    <div class="coach-box">
+      <div class="coach-row"><span class="coach-lbl">흐름</span><div class="picker" id="coachFlow"></div></div>
+      <div class="coach-row"><span class="coach-lbl">체력</span><div class="picker" id="coachHp"></div></div>
+      <div class="coach-row"><span class="coach-lbl">골드</span><div class="picker" id="coachGold"></div></div>
+      <div id="coachOut"></div>
+    </div>
+
     <div class="label">⭐ 이 덱 중 하나를 파세요</div>
     <div id="easyResult"></div>
 
@@ -786,6 +807,43 @@ function guideHtml(name){
   return h;
 }
 
+/* ===== 상황 코치 (차별점: 실시간 판단 엔진) ===== */
+let cFlow=null, cHp=null, cGold=null;
+const COACH_G = {
+  flow:[['win','연승'],['lose','연패'],['even','비슷']],
+  hp:[['ok','넉넉'],['mid','보통'],['low','위험']],
+  gold:[['hi','많음50+'],['lo','적음']],
+};
+function renderCoachInputs(){
+  const mk=(grp,cur)=>COACH_G[grp].map(([v,l])=>`<span class="pick ${cur===v?'on':''}" data-cg="${grp}" data-cv="${v}">${l}</span>`).join('');
+  $('#coachFlow').innerHTML=mk('flow',cFlow);
+  $('#coachHp').innerHTML=mk('hp',cHp);
+  $('#coachGold').innerHTML=mk('gold',cGold);
+}
+function coachAdvise(){
+  if(!cFlow && !cHp && !cGold) return null;
+  if(cHp==='low'){
+    if(cGold==='hi') return {tone:'danger',icon:'🚨',head:'지금은 생존이 최우선',sub:'가진 골드로 레벨업하거나 조금 롤해서 <b>보드를 즉시 강하게</b>. 이자보다 체력! 최강 유닛만 세우세요.'};
+    return {tone:'danger',icon:'🚨',head:'위험 — 버티기 모드',sub:'무리한 롤 금지. <b>연패 보너스</b>로 골드 모으며 최강 보드로 한 판이라도 이겨 체력 지키기.'};
+  }
+  if(cFlow==='win' && cHp!=='low'){
+    if(cGold==='hi') return {tone:'win',icon:'🔥',head:'연승 유지가 이득!',sub:'<b>레벨업으로 스노우볼</b>. 급하게 롤하지 말고 보드 파워로 연승 이어가기.'};
+    return {tone:'win',icon:'🔥',head:'연승 중 — 이자 챙기기',sub:'<b>50골 모으며</b> 연승 유지. 무리한 롤 X, 지금은 자연스럽게 강해지는 중.'};
+  }
+  if(cFlow==='lose'){
+    return {tone:'warn',icon:'⚠️',head:'연패 라인 관리',sub:'곧 체력이 위험할 수 있어요. <b>다음 스테이지에 보드 보강</b> 준비(레벨/롤 타이밍). 연패 보너스는 챙기되 너무 오래 끌지 말기.'};
+  }
+  if(cGold==='lo') return {tone:'econ',icon:'💰',head:'경제부터 만들기',sub:'<b>50골 이자</b> 만드는 게 우선. 급하게 롤하지 말고 레벨업+보드 유지.'};
+  return {tone:'econ',icon:'💰',head:'정석 운영',sub:'<b>50골 이자 유지</b>하며 타이밍에 레벨업. 안정적으로 8~9렙 향해 가기.'};
+}
+function renderCoach(){
+  renderCoachInputs();
+  const a=coachAdvise();
+  $('#coachOut').innerHTML = a
+    ? `<div class="coach-out ${a.tone}"><div class="co-head">${a.icon} ${esc(a.head)}</div><div class="co-sub">${a.sub}</div></div>`
+    : `<div class="seg" style="margin-top:6px">👆 지금 상황을 탭하면 <b>딱 하나의 할 일</b>을 알려줘요.</div>`;
+}
+
 const EASY_PICKS = [
   {name:"메카 (아우렐리온 솔)", why:"원트릭 · 아이템 덜 타서 초보에게 쉬움"},
   {name:"리산드라 리롤", why:"저코 리롤 · 8렙 안 가도 됨, 안정적"},
@@ -1261,7 +1319,15 @@ $('#unitOptions').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el
 $('#unitSelected').onclick = e=>{ const el=e.target.closest('.pick'); if(!el||!el.dataset.rm) return;
   myUnits.delete(el.dataset.rm); renderUnit(); };
 
-renderEasy(); renderDecks(); renderPocket(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
+document.querySelectorAll('#coachFlow,#coachHp,#coachGold').forEach(el=>{
+  el.onclick = e=>{ const c=e.target.closest('.pick'); if(!c) return;
+    const g=c.dataset.cg, v=c.dataset.cv;
+    if(g==='flow') cFlow=(cFlow===v?null:v);
+    else if(g==='hp') cHp=(cHp===v?null:v);
+    else if(g==='gold') cGold=(cGold===v?null:v);
+    renderCoach(); };
+});
+renderCoach(); renderEasy(); renderDecks(); renderPocket(); renderPickers(); renderAugInput(); renderReco(); setDogamSub('champions'); renderUnit();
 </script>
 </body>
 </html>
